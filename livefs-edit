@@ -8,9 +8,12 @@ from livefs_edit import tmp
 from livefs_edit import iso
 
 isopath = os.path.realpath(sys.argv[1])
+destpath = os.path.realpath(sys.argv[2])
 
 tmp.setup()
 
 iso.setup_iso(isopath)
 
 subprocess.run(['/bin/bash'])
+
+iso.repack_iso(destpath)

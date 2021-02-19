@@ -1,11 +1,6 @@
 import atexit
 import os
-import subprocess
-from . import tmp
-
-
-def run(cmd):
-    return subprocess.run(cmd, check=False)
+from . import run, tmp
 
 
 def add_mount(typ, src, mountpoint, *, options=None, existing=False):

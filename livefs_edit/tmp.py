@@ -7,13 +7,14 @@ TMP = None
 
 
 def tmpdir():
-    return tempfile.mkdtemp(dir='.')
+    return tempfile.mkdtemp(dir='.tmp')
 
 
 def setup():
     global TMP
     TMP = tempfile.mkdtemp()
     os.chdir(TMP)
+    os.mkdir('.tmp')
 
 
 @atexit.register
