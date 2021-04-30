@@ -13,7 +13,7 @@ ctxt.mount_iso()
 
 try:
     actions.setup_tree(ctxt, target='tree')
-    actions.inject_snap(ctxt, snap=sys.argv[3], target='tree')
+    actions.add_cmdline_arg(ctxt, 'autoinstall console=ttyS0')
 
     ctxt.repack_iso(destpath)
 finally:

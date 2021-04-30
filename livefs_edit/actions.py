@@ -91,3 +91,22 @@ def inject_snap(ctxt, snap, target, channel="stable"):
 
     run(['/usr/lib/snapd/snap-preseed', '--reset', target])
     run(['/usr/lib/snapd/snap-preseed', target])
+
+
+def add_cmdline_arg(ctxt, arg):
+    cfgs = [
+        'boot/grub/grub.cfg',
+        'isolinux/txt.cfg',
+        ]
+    for path in cfgs:
+        src = ctxt.p('old/iso/' + path)
+        dst = ctxt.p('new/iso/' + path)
+        if os.path.exists(src):
+            print('rewriting', path)
+            os.unlink(dst)
+            with open(dst, 'w') as outfp:
+                with open(src) as infp:
+                    for line in infp:
+                        if '---' in line:
+                            line = line.rstrip() + ' ' + arg + '\n'
+                        outfp.write(line)
