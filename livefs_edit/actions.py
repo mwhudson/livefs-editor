@@ -1,6 +1,7 @@
 import glob
 import os
 import shutil
+import yaml
 
 from . import run
 
@@ -39,3 +40,54 @@ def shell(ctxt, command=None):
 
 def replace_file(ctxt, source, dest):
     shutil.copy(source, ctxt.p(dest))
+
+
+def inject_snap(ctxt, snap, target, channel="stable"):
+    target = ctxt.p(target)
+    seed_dir = f'{target}/var/lib/snapd/seed'
+    snap_mount = ctxt.tmpdir()
+    ctxt.add_mount('squashfs', snap, snap_mount)
+    with open(f'{snap_mount}/meta/snap.yaml') as fp:
+        snap_meta = yaml.safe_load(fp)
+
+    snap_name = snap_meta['name']
+
+    snap_file = f'{snap_name}_injected'
+
+    new_snap = {
+        "name": snap_name,
+        "file": snap_file + '.snap',
+        "channel": channel,
+        }
+
+    if snap_meta.get('confinement') == 'classic':
+        new_snap['classic'] = True
+
+    new_snaps = []
+
+    with open(f'{seed_dir}/seed.yaml') as fp:
+        old_seed = yaml.safe_load(fp)
+    for old_snap in old_seed["snaps"]:
+        if old_snap["name"] == snap_name:
+            old_base = os.path.splitext(old_snap['file'])[0]
+            old_snap_file = f'{seed_dir}/snaps/{old_base}.snap'
+            old_assertion = f'{seed_dir}/assertions/{old_base}.assert'
+            for p in old_snap_file, old_assertion:
+                if os.path.exists(p):
+                    os.unlink(p)
+        else:
+            new_snaps.append(old_snap)
+
+    new_snaps.append(new_snap)
+    shutil.copy(snap, f'{seed_dir}/snaps/{snap_file}.snap')
+    assert_file = os.path.splitext(snap)[0] + '.assert'
+    if os.path.exists(assert_file):
+        shutil.copy(snap, f'{seed_dir}/assertions/{snap_file}.assert')
+    else:
+        new_snap["unasserted"] = True
+
+    with open(f'{seed_dir}/seed.yaml', "w") as fp:
+        yaml.dump({"snaps": new_snaps}, fp)
+
+    run(['/usr/lib/snapd/snap-preseed', '--reset', target])
+    run(['/usr/lib/snapd/snap-preseed', target])

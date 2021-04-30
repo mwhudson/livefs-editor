@@ -13,10 +13,7 @@ ctxt.mount_iso()
 
 try:
     actions.setup_tree(ctxt, target='tree')
-    actions.replace_file(
-        ctxt, sys.argv[3], 'new/iso/casper/installer.squashfs')
-    actions.replace_file(
-        ctxt, sys.argv[4], 'new/iso/casper/filesystem.squashfs')
+    actions.inject_snap(ctxt, snap=sys.argv[3], target='tree')
 
     ctxt.repack_iso(destpath)
 finally:
