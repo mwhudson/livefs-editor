@@ -1,19 +1,23 @@
 #!/usr/bin/python3
 
-import os
-import subprocess
 import sys
 
-from livefs_edit import tmp
-from livefs_edit import iso
+from livefs_edit.context import EditContext
+from livefs_edit import actions
 
-isopath = os.path.realpath(sys.argv[1])
-destpath = os.path.realpath(sys.argv[2])
+isopath = sys.argv[1]
+destpath = sys.argv[2]
 
-tmp.setup()
+ctxt = EditContext(isopath)
+ctxt.mount_iso()
 
-iso.setup_iso(isopath)
+try:
+    actions.setup_tree(ctxt, target='tree')
+    actions.replace_file(
+        ctxt, sys.argv[3], 'new/iso/casper/installer.squashfs')
+    actions.replace_file(
+        ctxt, sys.argv[4], 'new/iso/casper/filesystem.squashfs')
 
-subprocess.run(['/bin/bash'])
-
-iso.repack_iso(destpath)
+    ctxt.repack_iso(destpath)
+finally:
+    ctxt.teardown()
