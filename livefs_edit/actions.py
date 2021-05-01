@@ -6,7 +6,7 @@ import yaml
 from . import run
 
 
-def setup_tree(ctxt, target):
+def setup_tree(ctxt, target='tree'):
     target = ctxt.p(target)
     squashes = sorted(glob.glob(ctxt.p('old/iso/casper/*.squashfs')))
     lowers = []
@@ -42,7 +42,7 @@ def replace_file(ctxt, source, dest):
     shutil.copy(source, ctxt.p(dest))
 
 
-def inject_snap(ctxt, snap, target, channel="stable"):
+def inject_snap(ctxt, snap, target='tree', channel="stable"):
     target = ctxt.p(target)
     seed_dir = f'{target}/var/lib/snapd/seed'
     snap_mount = ctxt.tmpdir()
@@ -93,7 +93,7 @@ def inject_snap(ctxt, snap, target, channel="stable"):
     run(['/usr/lib/snapd/snap-preseed', target])
 
 
-def add_cmdline_arg(ctxt, arg):
+def add_cmdline_arg(ctxt, arg, persist=True):
     cfgs = [
         'boot/grub/grub.cfg',
         'isolinux/txt.cfg',
@@ -108,5 +108,9 @@ def add_cmdline_arg(ctxt, arg):
                 with open(src) as infp:
                     for line in infp:
                         if '---' in line:
-                            line = line.rstrip() + ' ' + arg + '\n'
+                            if persist:
+                                line = line.rstrip() + ' ' + arg + '\n'
+                            else:
+                                before, after = line.split('---', 1)
+                                line = before.rstrip() + arg + ' ---' + after
                         outfp.write(line)
