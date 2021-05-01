@@ -99,18 +99,18 @@ def add_cmdline_arg(ctxt, arg, persist=True):
         'isolinux/txt.cfg',
         ]
     for path in cfgs:
-        src = ctxt.p('old/iso/' + path)
-        dst = ctxt.p('new/iso/' + path)
-        if os.path.exists(src):
-            print('rewriting', path)
-            os.unlink(dst)
-            with open(dst, 'w') as outfp:
-                with open(src) as infp:
-                    for line in infp:
-                        if '---' in line:
-                            if persist:
-                                line = line.rstrip() + ' ' + arg + '\n'
-                            else:
-                                before, after = line.split('---', 1)
-                                line = before.rstrip() + arg + ' ---' + after
-                        outfp.write(line)
+        p = ctxt.p('new/iso/' + path)
+        if not os.path.exists(p):
+            continue
+        print('rewriting', path)
+        with open(p) as fp:
+            inputlines = list(fp)
+        with open(p, 'w') as outfp:
+            for line in inputlines:
+                if '---' in line:
+                    if persist:
+                        line = line.rstrip() + ' ' + arg + '\n'
+                    else:
+                        before, after = line.split('---', 1)
+                        line = before.rstrip() + ' ' + arg + ' ---' + after
+                outfp.write(line)
