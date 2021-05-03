@@ -114,3 +114,8 @@ def add_cmdline_arg(ctxt, arg, persist=True):
                         before, after = line.split('---', 1)
                         line = before.rstrip() + ' ' + arg + ' ---' + after
                 outfp.write(line)
+
+
+def add_autoinstall_cfg(ctxt, autoinstall_config, target='tree'):
+    shutil.copy(autoinstall_config, ctxt.p(target, 'autoinstall.yaml'))
+    add_cmdline_arg(ctxt, 'autoinstall', persist=False)
