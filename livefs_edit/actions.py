@@ -2,6 +2,7 @@ import gzip
 import os
 import shutil
 import subprocess
+from typing import List
 import yaml
 
 from . import run
@@ -18,7 +19,7 @@ def shell(ctxt, command=None):
     run(cmd, cwd=ctxt.p())
 
 
-def replace_file(ctxt, source, dest):
+def cp(ctxt, source, dest):
     shutil.copy(source, ctxt.p(dest))
 
 
@@ -73,7 +74,7 @@ def inject_snap(ctxt, snap, channel="stable"):
     run(['/usr/lib/snapd/snap-preseed', rootfs])
 
 
-def add_cmdline_arg(ctxt, arg, persist=True):
+def add_cmdline_arg(ctxt, arg, persist: bool = True):
     cfgs = [
         'boot/grub/grub.cfg',
         'isolinux/txt.cfg',
@@ -102,7 +103,7 @@ def add_autoinstall_cfg(ctxt, autoinstall_config):
     add_cmdline_arg(ctxt, 'autoinstall', persist=False)
 
 
-def add_debs_to_pool(ctxt, debs):
+def add_debs_to_pool(ctxt, *debs):
     from debian import deb822
     pool = ctxt.p('new/iso/pool/main')
     with open(ctxt.p('new/iso/.disk/info')) as fp:
@@ -138,7 +139,7 @@ def add_debs_to_pool(ctxt, debs):
         old.dump(new_release)
 
 
-def add_packages_to_pool(ctxt, packages):
+def add_packages_to_pool(ctxt, *packages):
     from apt import Cache
     fs = ctxt.mount_squash('filesystem')
     overlay = ctxt.add_overlay(fs)
@@ -161,4 +162,4 @@ def add_packages_to_pool(ctxt, packages):
         fname = os.path.basename(p.candidate.filename)
         if fname not in pool_debs:
             debs.append(p.candidate.fetch_binary(tdir))
-    add_debs_to_pool(ctxt, debs)
+    add_debs_to_pool(ctxt, *debs)

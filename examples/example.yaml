@@ -1,0 +1,4 @@
+- name: add-cmdline-arg
+  arg: autoinstall
+  persist: false
+- name: shell
