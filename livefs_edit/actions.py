@@ -140,7 +140,13 @@ def add_debs_to_pool(ctxt, debs):
 
 def add_packages_to_pool(ctxt, packages):
     from apt import Cache
-    cache = Cache(rootdir=ctxt.rootfs())
+    fs = ctxt.mount_squash('filesystem')
+    overlay = ctxt.add_overlay(fs)
+    ctxt.add_sys_mounts(overlay)
+    print('  ** running apt update **')
+    run(['chroot', overlay, 'apt', 'update'])
+    print('  ** apt update done **')
+    cache = Cache(rootdir=overlay)
     for p in packages:
         print('marking', p, 'for installation')
         cache[p].mark_install()

@@ -25,8 +25,9 @@ class EditContext:
     def p(self, *args):
         return os.path.join(self.dir, *args)
 
-    def add_mount(self, typ, src, mountpoint, *, options=None):
-        mountpoint = self.p(mountpoint)
+    def add_mount(self, typ, src, mountpoint=None, *, options=None):
+        if mountpoint is None:
+            mountpoint = self.tmpdir()
         cmd = ['mount', '-t', typ, src]
         if options:
             cmd.extend(['-o', options])
@@ -35,6 +36,7 @@ class EditContext:
             os.makedirs(mountpoint)
         run(cmd)
         self._mounts.append(mountpoint)
+        return mountpoint
 
     def add_sys_mounts(self, mountpoint):
         for typ, relpath in [
@@ -45,18 +47,34 @@ class EditContext:
                 ('securityfs', 'sys/kernel/security'),
                 ]:
             self.add_mount(typ, typ, f'{mountpoint}/{relpath}')
+        resolv_conf = f'{mountpoint}/etc/resolv.conf'
+        os.rename(resolv_conf, resolv_conf + '.tmp')
+        shutil.copy('/etc/resolv.conf', resolv_conf)
 
-    def add_overlay(self, lower, mountpoint, *, upper=None):
+        def _pre_repack():
+            os.rename(resolv_conf + '.tmp', resolv_conf)
+
+        self.add_pre_repack_hook(_pre_repack)
+
+    def add_overlay(self, lower, mountpoint=None, *, upper=None):
         if upper is None:
             upper = self.tmpdir()
         elif not os.path.isdir(upper):
             os.mkdir(upper)
         work = self.tmpdir()
         options = f'lowerdir={lower},upperdir={upper},workdir={work}'
-        self.add_mount('overlay', 'overlay', mountpoint, options=options)
+        return self.add_mount(
+            'overlay', 'overlay', mountpoint, options=options)
 
     def add_pre_repack_hook(self, hook):
         self._pre_repack_hooks.append(hook)
+
+    def mount_squash(self, name):
+        target = self.p('old/' + name)
+        squash = self.p(f'old/iso/casper/{name}.squashfs')
+        if not os.path.isdir(target):
+            self.add_mount('squashfs', squash, target, options='ro')
+        return target
 
     def rootfs(self, target='rootfs'):
         if self._rootfs_dir is not None:
@@ -65,10 +83,8 @@ class EditContext:
         squashes = sorted(glob.glob(self.p('old/iso/casper/*.squashfs')))
         lowers = []
         for squash in squashes:
-            lower = self.p('old/' + os.path.splitext(os.path.basename(squash))[0])
-            if not os.path.isdir(lower):
-                self.add_mount('squashfs', squash, lower, options='ro')
-            lowers.append(lower)
+            name = os.path.splitext(os.path.basename(squash))[0]
+            lowers.append(self.mount_squash(name))
         lower = ':'.join(reversed(lowers))
         upper = self.tmpdir()
         self.add_overlay(lower, self._rootfs_dir, upper=upper)
@@ -94,7 +110,7 @@ class EditContext:
     def mount_iso(self):
         old = self.p('old/iso')
         self.add_mount('iso9660', self.iso_path, old, options='loop,ro')
-        self.add_overlay(old, 'new/iso')
+        self.add_overlay(old, self.p('new/iso'))
 
     def repack_iso(self, destpath):
         for hook in reversed(self._pre_repack_hooks):
