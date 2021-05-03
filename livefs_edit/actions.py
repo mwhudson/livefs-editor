@@ -157,3 +157,23 @@ def add_debs_to_pool(ctxt, debs):
             old[k] = new[k]
     with open(release, 'wb') as new_release:
         old.dump(new_release)
+
+
+def add_packages_to_pool(ctxt, packages, target='tree'):
+    from apt import Cache
+    cache = Cache(rootdir=ctxt.p(target))
+    for p in packages:
+        print('marking', p, 'for installation')
+        cache[p].mark_install()
+    tdir = ctxt.tmpdir()
+    pool_debs = set()
+    for dirpath, dirnames, filenames in os.walk(ctxt.p('new/iso/pool')):
+        for fname in filenames:
+            if fname.endswith('.deb'):
+                pool_debs.add(fname)
+    debs = []
+    for p in cache.get_changes():
+        fname = os.path.basename(p.candidate.filename)
+        if fname not in pool_debs:
+            debs.append(p.candidate.fetch_binary(tdir))
+    add_debs_to_pool(ctxt, debs)

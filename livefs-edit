@@ -12,7 +12,8 @@ ctxt = EditContext(isopath)
 ctxt.mount_iso()
 
 try:
-    actions.add_debs_to_pool(ctxt, sys.argv[3:])
+    actions.setup_tree(ctxt)
+    actions.add_packages_to_pool(ctxt, sys.argv[3:])
     actions.shell(ctxt)
 
     ctxt.repack_iso(destpath)
