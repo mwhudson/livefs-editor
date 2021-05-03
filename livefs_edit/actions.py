@@ -1,6 +1,8 @@
 import glob
+import gzip
 import os
 import shutil
+import subprocess
 import yaml
 
 from . import run
@@ -119,3 +121,39 @@ def add_cmdline_arg(ctxt, arg, persist=True):
 def add_autoinstall_cfg(ctxt, autoinstall_config, target='tree'):
     shutil.copy(autoinstall_config, ctxt.p(target, 'autoinstall.yaml'))
     add_cmdline_arg(ctxt, 'autoinstall', persist=False)
+
+
+def add_debs_to_pool(ctxt, debs):
+    from debian import deb822
+    pool = ctxt.p('new/iso/pool/main')
+    with open(ctxt.p('new/iso/.disk/info')) as fp:
+        arch = fp.read().strip().split()[-2]
+    for deb in debs:
+        shutil.copy(deb, pool)
+    packages = ctxt.p(f'new/iso/dists/stable/main/binary-{arch}/Packages.gz')
+    cp = run(
+        [
+            'apt-ftparchive', '--md5=off', '--sha1=off',
+            'packages', 'pool/main',
+        ],
+        cwd=ctxt.p('new/iso'), stdout=subprocess.PIPE)
+    with gzip.open(packages, 'wb') as new_packages:
+        new_packages.write(cp.stdout)
+    release = ctxt.p(f'new/iso/dists/stable/Release')
+    with open(release) as o:
+        old = deb822.Deb822(o)
+    for p in release, release + '.gpg':
+        if os.path.exists(p):
+            os.unlink(p)
+    cp = run(
+        [
+            'apt-ftparchive', '--md5=off', '--sha1=off', '--sha512=off',
+            'release', 'dists/unstable',
+        ],
+        cwd=ctxt.p('new/iso'), stdout=subprocess.PIPE)
+    new = deb822.Deb822(cp.stdout)
+    for k in old:
+        if k in new:
+            old[k] = new[k]
+    with open(release, 'wb') as new_release:
+        old.dump(new_release)

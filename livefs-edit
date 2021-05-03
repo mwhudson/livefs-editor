@@ -12,8 +12,8 @@ ctxt = EditContext(isopath)
 ctxt.mount_iso()
 
 try:
-    actions.add_cmdline_arg(ctxt, 'autoinstall', persist=False)
-    actions.add_cmdline_arg(ctxt, 'console=ttyS0', persist=True)
+    actions.add_debs_to_pool(ctxt, sys.argv[3:])
+    actions.shell(ctxt)
 
     ctxt.repack_iso(destpath)
 finally:
