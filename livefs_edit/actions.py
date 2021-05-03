@@ -1,4 +1,3 @@
-import glob
 import gzip
 import os
 import shutil
@@ -8,29 +7,8 @@ import yaml
 from . import run
 
 
-def setup_tree(ctxt, target='tree'):
-    target = ctxt.p(target)
-    squashes = sorted(glob.glob(ctxt.p('old/iso/casper/*.squashfs')))
-    lowers = []
-    for squash in squashes:
-        lower = ctxt.p('old/' + os.path.splitext(os.path.basename(squash))[0])
-        if not os.path.isdir(lower):
-            ctxt.add_mount('squashfs', squash, lower)
-        lowers.append(lower)
-    lower = ':'.join(reversed(lowers))
-    upper = ctxt.tmpdir()
-    ctxt.add_overlay(lower, target, upper=upper)
-    ctxt.add_sys_mounts(target)
-
-    last_squash = squashes[-1]
-    base = os.path.basename(last_squash)
-    new_squash = ctxt.p('new/iso/casper/' + chr(ord(base[0])+1) + base[1:])
-
-    def _pre_repack():
-        if os.listdir(upper) != []:
-            run(['mksquashfs', upper, new_squash])
-
-    ctxt.add_pre_repack_hook(_pre_repack)
+def setup_rootfs(ctxt, target='rootfs'):
+    ctxt.rootfs(target)
 
 
 def shell(ctxt, command=None):
@@ -44,9 +22,9 @@ def replace_file(ctxt, source, dest):
     shutil.copy(source, ctxt.p(dest))
 
 
-def inject_snap(ctxt, snap, target='tree', channel="stable"):
-    target = ctxt.p(target)
-    seed_dir = f'{target}/var/lib/snapd/seed'
+def inject_snap(ctxt, snap, channel="stable"):
+    rootfs = ctxt.rootfs()
+    seed_dir = f'{rootfs}/var/lib/snapd/seed'
     snap_mount = ctxt.tmpdir()
     ctxt.add_mount('squashfs', snap, snap_mount)
     with open(f'{snap_mount}/meta/snap.yaml') as fp:
@@ -91,8 +69,8 @@ def inject_snap(ctxt, snap, target='tree', channel="stable"):
     with open(f'{seed_dir}/seed.yaml', "w") as fp:
         yaml.dump({"snaps": new_snaps}, fp)
 
-    run(['/usr/lib/snapd/snap-preseed', '--reset', target])
-    run(['/usr/lib/snapd/snap-preseed', target])
+    run(['/usr/lib/snapd/snap-preseed', '--reset', rootfs])
+    run(['/usr/lib/snapd/snap-preseed', rootfs])
 
 
 def add_cmdline_arg(ctxt, arg, persist=True):
@@ -118,8 +96,9 @@ def add_cmdline_arg(ctxt, arg, persist=True):
                 outfp.write(line)
 
 
-def add_autoinstall_cfg(ctxt, autoinstall_config, target='tree'):
-    shutil.copy(autoinstall_config, ctxt.p(target, 'autoinstall.yaml'))
+def add_autoinstall_cfg(ctxt, autoinstall_config):
+    rootfs = ctxt.rootfs()
+    shutil.copy(autoinstall_config, os.path.join(rootfs, 'autoinstall.yaml'))
     add_cmdline_arg(ctxt, 'autoinstall', persist=False)
 
 
@@ -159,9 +138,9 @@ def add_debs_to_pool(ctxt, debs):
         old.dump(new_release)
 
 
-def add_packages_to_pool(ctxt, packages, target='tree'):
+def add_packages_to_pool(ctxt, packages):
     from apt import Cache
-    cache = Cache(rootdir=ctxt.p(target))
+    cache = Cache(rootdir=ctxt.rootfs())
     for p in packages:
         print('marking', p, 'for installation')
         cache[p].mark_install()
