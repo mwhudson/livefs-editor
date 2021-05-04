@@ -178,3 +178,12 @@ This is a wrapper around `add-debs-to-pool` which takes package names
 rather than deb files. It downloads the listed packages and any others
 needed to satisfy their dependencies from the main Ubuntu archive and
 passes them to `add-debs-to-pool`.
+
+### unpack-initrd
+
+**argument**: `target` (default: `"initrd"`)
+
+Unpack the initrd using unmkinitramfs into `target` (contents will
+likely end up in subdirectories called things like `early`, `early2`
+and `main`) and arrange for these to be repacked into a replacement
+initrd for the modified ISO.

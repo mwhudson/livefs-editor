@@ -1,4 +1,3 @@
-import gzip
 import os
 import shutil
 import subprocess
@@ -163,3 +162,46 @@ def add_packages_to_pool(ctxt, packages: List[str]):
         if fname not in pool_debs:
             debs.append(p.candidate.fetch_binary(tdir))
     add_debs_to_pool(ctxt, debs)
+
+
+def add_to_pipeline(prev_proc, cmds, env=None, **kw):
+    if env is not None:
+        base_env = os.environ.copy()
+        base_env.update(env)
+        env = base_env
+    if prev_proc is not None:
+        stdin = prev_proc.stdout
+    else:
+        stdin = None
+    proc = subprocess.Popen(
+        cmds, stdout=kw.pop('stdout', subprocess.PIPE),
+        stdin=stdin, env=env, **kw)
+    if stdin is not None:
+        stdin.close()
+    return proc
+
+
+def unpack_initrd(ctxt, target='initrd'):
+    target = ctxt.p(target)
+    os.mkdir(target)
+    run(['unmkinitramfs', ctxt.p('old/iso/casper/initrd'), target])
+
+    def _pre_repack():
+        with open(ctxt.p('new/iso/casper/initrd'), 'wb') as out:
+            for dir in sorted(os.listdir(target)):
+                find = add_to_pipeline(
+                    None, ['find', '.'], cwd=f'{target}/{dir}')
+                sort = add_to_pipeline(
+                    find, ['sort'], env={'LC_ALL': 'C'})
+                cpio = add_to_pipeline(
+                    sort, ['cpio', '-R', '0:0', '-o', '-H', 'newc'],
+                    cwd=f'{target}/{dir}')
+                if dir == 'main':
+                    compress = add_to_pipeline(
+                        cpio, ['gzip'], stdout=out)
+                else:
+                    compress = add_to_pipeline(
+                        cpio, ['cat'], stdout=out)
+                compress.communicate()
+
+    ctxt.add_pre_repack_hook(_pre_repack)
