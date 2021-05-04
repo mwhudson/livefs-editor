@@ -187,6 +187,7 @@ def unpack_initrd(ctxt, target='initrd'):
     run(['unmkinitramfs', ctxt.p('old/iso/casper/initrd'), target])
 
     def _pre_repack():
+        # This is all a bit amd64 specific.
         with open(ctxt.p('new/iso/casper/initrd'), 'wb') as out:
             for dir in sorted(os.listdir(target)):
                 find = add_to_pipeline(
