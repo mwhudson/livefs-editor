@@ -16,10 +16,13 @@ quite be what you want. Here are some examples:
 This script aims to help you making modified versions of the
 distributed ISOs with changes such as those above.
 
+Some of the things it does probably work on desktop installer ISOs too
+but I haven't thought very hard about that side of things yet.
+
 ## Dependencies
 
-This script is pretty Linux-dependent and requires 'xorriso' and
-'mksquashfs' to be available on `$PATH`.  It needs to be run as root.
+This script is pretty Linux-dependent and requires `xorriso` and
+`mksquashfs` to be available on `$PATH`.  It needs to be run as root.
 
 ## General invocation
 
