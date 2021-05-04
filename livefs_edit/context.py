@@ -60,7 +60,7 @@ class EditContext:
         if upper is None:
             upper = self.tmpdir()
         elif not os.path.isdir(upper):
-            os.mkdir(upper)
+            os.makedirs(upper)
         work = self.tmpdir()
         options = f'lowerdir={lower},upperdir={upper},workdir={work}'
         return self.add_mount(
@@ -115,11 +115,14 @@ class EditContext:
     def mount_iso(self):
         old = self.p('old/iso')
         self.add_mount('iso9660', self.iso_path, old, options='loop,ro')
-        self.add_overlay(old, self.p('new/iso'))
+        self.add_overlay(old, self.p('new/iso'), upper=self.p('upper/iso'))
 
     def repack_iso(self, destpath):
         for hook in reversed(self._pre_repack_hooks):
             hook()
+        if os.listdir(self.p('upper/iso')) == []:
+            print("no changes!")
+            return
         cp = run(
             ['xorriso', '-indev', self.iso_path, '-report_el_torito',
              'as_mkisofs'],
