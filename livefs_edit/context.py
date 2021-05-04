@@ -76,6 +76,11 @@ class EditContext:
             self.add_mount('squashfs', squash, target, options='ro')
         return target
 
+    def get_arch(self):
+        # Is this really the best way??
+        with open(self.p('new/iso/.disk/info')) as fp:
+            return fp.read().strip().split()[-2]
+
     def rootfs(self, target='rootfs'):
         if self._rootfs_dir is not None:
             return self._rootfs_dir

@@ -1,3 +1,4 @@
+import gzip
 import os
 import shutil
 import subprocess
@@ -105,10 +106,9 @@ def add_autoinstall_cfg(ctxt, autoinstall_config):
 def add_debs_to_pool(ctxt, debs: List[str]):
     from debian import deb822
     pool = ctxt.p('new/iso/pool/main')
-    with open(ctxt.p('new/iso/.disk/info')) as fp:
-        arch = fp.read().strip().split()[-2]
     for deb in debs:
         shutil.copy(deb, pool)
+    arch = ctxt.get_arch()
     packages = ctxt.p(f'new/iso/dists/stable/main/binary-{arch}/Packages.gz')
     cp = run(
         [
@@ -180,35 +180,51 @@ def add_to_pipeline(prev_proc, cmds, env=None, **kw):
         stdin.close()
     return proc
 
+def pack_for_initrd(dir, compress, outfile):
+    find = add_to_pipeline(None, ['find', '.'], cwd=dir)
+    sort = add_to_pipeline(find, ['sort'], env={'LC_ALL': 'C'})
+    cpio = add_to_pipeline(sort, ['cpio', '-R', '0:0', '-o', '-H', 'newc'], cwd=dir)
+    if dir == 'main':
+        compress = add_to_pipeline(cpio, ['gzip'], stdout=outfile)
+    else:
+        compress = add_to_pipeline(cpio, ['cat'], stdout=outfile)
+    compress.communicate()
+
 
 def unpack_initrd(ctxt, target='initrd'):
     target = ctxt.p(target)
     lower = ctxt.p('old/initrd')
-    run(['unmkinitramfs', ctxt.p('old/iso/casper/initrd'), lower])
+    arch = ctxt.get_arch()
+    if arch == 's390x':
+        initrd_path = 'boot/initrd.ubuntu'
+    else:
+        initrd_path = 'casper/initrd'
+    run(['unmkinitramfs', ctxt.p(f'old/iso/{initrd_path}'), lower])
     upper = ctxt.tmpdir()
     ctxt.add_overlay(lower, target, upper=upper)
 
-    def _pre_repack():
-        if os.listdir(upper) == []:
-            # Don't slowly repack initrd if no changes made to it.
-            return
-        print('repacking initrd...')
-        # This is all a bit amd64 specific.
-        with open(ctxt.p('new/iso/casper/initrd'), 'wb') as out:
-            for dir in sorted(os.listdir(target)):
-                print("  packing", dir)
-                find = add_to_pipeline(
-                    None, ['find', '.'], cwd=f'{target}/{dir}')
-                sort = add_to_pipeline(
-                    find, ['sort'], env={'LC_ALL': 'C'})
-                cpio = add_to_pipeline(
-                    sort, ['cpio', '-R', '0:0', '-o', '-H', 'newc'],
-                    cwd=f'{target}/{dir}')
-                if dir == 'main':
-                    compress = add_to_pipeline(cpio, ['gzip'], stdout=out)
-                else:
-                    compress = add_to_pipeline(cpio, ['cat'], stdout=out)
-                compress.communicate()
-        print("  ... done")
+    if 'early' in os.listdir(target):
+        def _pre_repack_multi():
+            if os.listdir(upper) == []:
+                # Don't slowly repack initrd if no changes made to it.
+                return
+            print('repacking initrd...')
+            with open(ctxt.p('new/iso/{initrd_path}'), 'wb') as out:
+                for dir in sorted(os.listdir(target)):
+                    print("  packing", dir)
+                    pack_for_initrd(f'{target}/{dir}', dir == "main", out)
 
-    ctxt.add_pre_repack_hook(_pre_repack)
+            print("  ... done")
+
+        ctxt.add_pre_repack_hook(_pre_repack_multi)
+    else:
+        def _pre_repack_single():
+            if os.listdir(upper) == []:
+                # Don't slowly repack initrd if no changes made to it.
+                return
+            print('repacking initrd...')
+            with open(ctxt.p('new/iso/{initrd_path}'), 'wb') as out:
+                pack_for_initrd(target, True, out)
+            print("  ... done")
+
+        ctxt.add_pre_repack_hook(_pre_repack_single)
