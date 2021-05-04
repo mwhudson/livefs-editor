@@ -20,13 +20,19 @@ if sys.argv[3] == '--action-yaml':
     print(spec)
     for action in spec:
         func = getattr(actions, action.pop('name').replace('-', '_'))
-        calls.append((func, (), action))
+        calls.append((func, action))
 else:
-    calls = cli.parse(actions, sys.argv[3:])
+    try:
+        calls = cli.parse(actions, sys.argv[3:])
+    except cli.ArgException as e:
+        print("parsing actions from command line failed:", e)
+        sys.exit(1)
 
 try:
-    for func, args, kw in calls:
-        func(ctxt, *args, **kw)
+    for func, kw in calls:
+        print(
+            "running", func.__name__.replace('_', '-'),  "with arguments", kw)
+        func(ctxt, **kw)
 
     ctxt.repack_iso(destpath)
 finally:

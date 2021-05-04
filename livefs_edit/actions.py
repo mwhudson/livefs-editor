@@ -103,7 +103,7 @@ def add_autoinstall_cfg(ctxt, autoinstall_config):
     add_cmdline_arg(ctxt, 'autoinstall', persist=False)
 
 
-def add_debs_to_pool(ctxt, *debs):
+def add_debs_to_pool(ctxt, debs: List[str]):
     from debian import deb822
     pool = ctxt.p('new/iso/pool/main')
     with open(ctxt.p('new/iso/.disk/info')) as fp:
@@ -139,7 +139,7 @@ def add_debs_to_pool(ctxt, *debs):
         old.dump(new_release)
 
 
-def add_packages_to_pool(ctxt, *packages):
+def add_packages_to_pool(ctxt, packages: List[str]):
     from apt import Cache
     fs = ctxt.mount_squash('filesystem')
     overlay = ctxt.add_overlay(fs)
@@ -162,4 +162,4 @@ def add_packages_to_pool(ctxt, *packages):
         fname = os.path.basename(p.candidate.filename)
         if fname not in pool_debs:
             debs.append(p.candidate.fetch_binary(tdir))
-    add_debs_to_pool(ctxt, *debs)
+    add_debs_to_pool(ctxt, debs)

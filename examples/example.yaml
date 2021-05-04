@@ -2,3 +2,7 @@
   arg: autoinstall
   persist: false
 - name: shell
+- name: add-packages-to-pool
+  packages:
+    - casper
+    - valgrind
