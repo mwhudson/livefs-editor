@@ -183,13 +183,20 @@ def add_to_pipeline(prev_proc, cmds, env=None, **kw):
 
 def unpack_initrd(ctxt, target='initrd'):
     target = ctxt.p(target)
-    os.mkdir(target)
-    run(['unmkinitramfs', ctxt.p('old/iso/casper/initrd'), target])
+    lower = ctxt.p('old/initrd')
+    run(['unmkinitramfs', ctxt.p('old/iso/casper/initrd'), lower])
+    upper = ctxt.tmpdir()
+    ctxt.add_overlay(lower, target, upper=upper)
 
     def _pre_repack():
+        if os.listdir(upper) == []:
+            # Don't slowly repack initrd if no changes made to it.
+            return
+        print('repacking initrd...')
         # This is all a bit amd64 specific.
         with open(ctxt.p('new/iso/casper/initrd'), 'wb') as out:
             for dir in sorted(os.listdir(target)):
+                print("  packing", dir)
                 find = add_to_pipeline(
                     None, ['find', '.'], cwd=f'{target}/{dir}')
                 sort = add_to_pipeline(
@@ -198,11 +205,10 @@ def unpack_initrd(ctxt, target='initrd'):
                     sort, ['cpio', '-R', '0:0', '-o', '-H', 'newc'],
                     cwd=f'{target}/{dir}')
                 if dir == 'main':
-                    compress = add_to_pipeline(
-                        cpio, ['gzip'], stdout=out)
+                    compress = add_to_pipeline(cpio, ['gzip'], stdout=out)
                 else:
-                    compress = add_to_pipeline(
-                        cpio, ['cat'], stdout=out)
+                    compress = add_to_pipeline(cpio, ['cat'], stdout=out)
                 compress.communicate()
+        print("  ... done")
 
     ctxt.add_pre_repack_hook(_pre_repack)
