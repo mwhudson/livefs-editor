@@ -35,6 +35,53 @@ this:
 Actions can be specified two ways: on the command line or in a YAML
 file. Each action has a name and many of them take arguments.
 
+On the command line, actions and arguments are specified like:
+
+```
+--action-name arg1 arg2 --next-action-name
+```
+
+Arguments can be passed positionally:
+
+```
+--cp source/path dest/path
+```
+
+Or by name:
+
+```
+--cp source=source/path dest=dest/path
+```
+
+Apart from arguments that are a list, such as a list of package
+names. These are always the last (in fact only, at the time of writing)
+argument and are just space separated:
+
+```
+--add-packages-to-pool binutils gdb
+```
+
+Alternatively (if shell quoting starts to get painful), the actions
+can be passed as a YAML file, using the `--action-yaml` flag:
+
+```
+# livefs-edit $source.iso $dest.iso --action-yaml examples/example.yaml
+```
+
+The YAML file should be a list of mappings. Each mapping names the
+actions with `name` and lists any arguments by name, for example:
+
+```
+- name: add-cmdline-arg
+  arg: autoinstall
+  persist: false
+- name: shell
+- name: add-packages-to-pool
+  packages:
+    - casper
+    - valgrind
+```
+
 ## Directory structure
 
 This script does all its work in a temporary directory. Within that
@@ -50,9 +97,7 @@ the main temporary directory, but this can be customized.
 
 ### setup-rootfs
 
-**argument**: `target`
-
-**default**: "rootfs"
+**argument**: `target` (default: `"rootfs"`)
 
 This action sets up a writable emulation of the root filesystem that
 the installer will run in at the directory named by `target`. Changes
@@ -65,9 +110,7 @@ actions refer to paths in the rootfs.
 
 ### shell
 
-**argument**: `command`
-
-**default**: null
+**argument**: `command` (default: `null`)
 
 Runs a shell (bash) in the main temporary directory. If `command` is
 present, this is the command that is run. If not, an interactive shell
@@ -80,27 +123,32 @@ code, that aborts the run.
 
 **argument**: `dest`
 
-Copy a file into the temporary directory. `dest` is assumed to be
-relative to this.
+Copy a file. `dest` is assumed to be relative to the main temporary
+directory. So something like this:
+
+```
+--cp /my/custom/initrd new/iso/casper/initrd
+```
+
+to replace the initrd.
 
 ### inject-snap
 
 **argument**: `snap`
 
-**argument**: `channel`
-
-**default**: "stable"
+**argument**: `channel` (default: `"stable"`)
 
 Inject the passed snap into the rootfs the installer runs in. This is
-used to test new versions of subiquity.
+used to test new versions of subiquity. If there is an assert
+alongside the snap, this will be copied into the ISO too and the snap
+set up to track the passed channel, otherwise it is installed
+unasserted.
 
 ### add-cmdline-arg
 
 **argument**: `arg`
 
-**argument**: `persist`
-
-**default**: true
+**argument**: `persist` (default: `true`)
 
 Add an argument to the default kernel command line. If `persist` is
 true, it will be present on the default kernel command line of the
