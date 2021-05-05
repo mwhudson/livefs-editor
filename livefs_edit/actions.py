@@ -108,6 +108,23 @@ def add_autoinstall_cfg(ctxt, autoinstall_config):
 
 
 def add_debs_to_pool(ctxt, debs: List[str]):
+    gpgconf = ctxt.tmpfile()
+    gpghome = ctxt.tmpdir()
+    with open(gpgconf, 'x') as c:
+        c.write("""\
+%no-protection
+Key-Type: RSA
+Key-Length: 1024
+Key-Usage: sign
+Name-Real: Ubuntu Custom ISO One-Time Signing Key
+Name-Email: noone@nowhere.invalid
+Expire-Date: 0
+""")
+    gpgconfp = open(gpgconf)
+    gpg_proc = subprocess.Popen(
+        ['gpg', '--home', gpghome, '--gen-key', '--batch'],
+        stdin=gpgconfp)
+
     from debian import deb822
     pool = ctxt.p('new/iso/pool/main')
     for deb in debs:
@@ -140,6 +157,16 @@ def add_debs_to_pool(ctxt, debs: List[str]):
             old[k] = new[k]
     with open(release, 'wb') as new_release:
         old.dump(new_release)
+
+    gpg_proc.wait()
+
+    run(['gpg', '--home', gpghome, '--detach-sign', '--armor', release])
+    os.rename(release + '.asc', release + '.gpg')
+
+    new_fs = ctxt.edit_squashfs('filesystem')
+    key_path = f'{new_fs}/etc/apt/trusted.gpg.d/custom-iso-key.gpg'
+    with open(key_path, 'w') as new_key:
+        run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
 
 
 def add_packages_to_pool(ctxt, packages: List[str]):

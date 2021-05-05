@@ -22,6 +22,9 @@ class EditContext:
     def tmpdir(self):
         return tempfile.mkdtemp(dir=self.p('.tmp'))
 
+    def tmpfile(self):
+        return tempfile.mktemp(dir=self.p('.tmp'))
+
     def p(self, *args):
         return os.path.join(self.dir, *args)
 
@@ -119,7 +122,7 @@ class EditContext:
         upper = self.tmpdir()
         target = self.p(f'new/{name}')
         if os.path.exists(target):
-            return
+            return target
         self.add_overlay(lower, target, upper=upper)
         print("squashfs %r now mounted at %r" % (name, target))
         new_squash = self.p(f'new/iso/casper/{name}.squashfs')
@@ -141,6 +144,8 @@ class EditContext:
 
         if add_sys_mounts:
             self.add_sys_mounts(target)
+
+        return target
 
     def teardown(self):
         for mount in reversed(self._mounts):
