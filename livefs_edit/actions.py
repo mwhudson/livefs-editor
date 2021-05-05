@@ -148,7 +148,7 @@ Expire-Date: 0
     cp = run(
         [
             'apt-ftparchive', '--md5=off', '--sha1=off', '--sha512=off',
-            'release', 'dists/unstable',
+            'release', 'dists/stable',
         ],
         cwd=ctxt.p('new/iso'), stdout=subprocess.PIPE)
     new = deb822.Deb822(cp.stdout)
@@ -170,14 +170,22 @@ Expire-Date: 0
 
 
 def add_packages_to_pool(ctxt, packages: List[str]):
+    import apt_pkg
     from apt import Cache
+    from apt.progress.text import AcquireProgress
     fs = ctxt.mount_squash('filesystem')
     overlay = ctxt.add_overlay(fs)
-    ctxt.add_sys_mounts(overlay)
-    print('  ** running apt update **')
-    run(['chroot', overlay, 'apt', 'update'])
-    print('  ** apt update done **')
-    cache = Cache(rootdir=overlay)
+    for key in apt_pkg.config.list():
+        apt_pkg.config.clear(key)
+    apt_pkg.config["Dir"] = overlay
+    apt_pkg.init_config()
+    apt_pkg.config["APT::Architecture"] = ctxt.get_arch()
+    apt_pkg.config["APT::Architectures"] = ctxt.get_arch()
+    apt_pkg.init_system()
+    cache = Cache()
+    print('  ** updating apt lists... **')
+    cache.update(AcquireProgress())
+    print('  ** updating apt lists done **')
     for p in packages:
         print('marking', p, 'for installation')
         cache[p].mark_install()
