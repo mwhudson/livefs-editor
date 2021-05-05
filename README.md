@@ -22,7 +22,12 @@ but I haven't thought very hard about that side of things yet.
 ## Dependencies
 
 This script is pretty Linux-dependent and requires `xorriso` and
-`mksquashfs` to be available on `$PATH`.  It needs to be run as root.
+`mksquashfs` to be available on `$PATH`.  Some actions require the
+`python3-debian` package to be installed and `gpg` command to be
+available.
+
+It needs to be run as root (although possibly using FUSE variants for
+all the mounts would allow it to run as a regular user, maybe).
 
 ## General invocation
 
