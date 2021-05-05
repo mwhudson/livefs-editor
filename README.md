@@ -90,11 +90,16 @@ actions with `name` and lists any arguments by name, for example:
 This script does all its work in a temporary directory. Within that
 directory the original ISO is mounted at `old/iso` and what will be
 packed into the new ISO is present at `new/iso` (the script uses a lot
-of `overlayfs` mounts to avoid copying large amounts of data around).
+of `overlayfs` mounts to avoid copying large amounts of data around,
+and also only repack things when there are changes).
 
 Many actions require a writable emulation of the root filesystem that
 the installer will run in. By default this is created at `rootfs` in
 the main temporary directory, but this can be customized.
+
+In general, things from the original ISO are mounted in `old/` and are
+either read-only or should be treated as such. Writable versions for
+the new ISO live in `new/` (mostly).
 
 ## Actions
 
@@ -188,9 +193,11 @@ install is done offline.
 
 This will generate a new Ed25519 GPG key, sign the package repository
 on the ISO with it, arrange for the public part to end up in
-`/etc/apt/trusted.gpg.d` in the installed system, and then throw the
-private part away. You should be aware of this change to the default
-apt configuration!
+`/etc/apt/trusted.gpg.d/custom-iso-key.gpg` in the installed system,
+and then throw the private part away. You should be aware of this
+change to the default apt configuration! Deleting this file in an
+autoinstall `late-command` would be a reasonable thing to do, unless
+you want the option of using the ISO as an apt repository later on.
 
 ### add-packages-to-pool
 
