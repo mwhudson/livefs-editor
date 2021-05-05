@@ -199,7 +199,8 @@ apt configuration!
 This is a wrapper around `add-debs-to-pool` which takes package names
 rather than deb files. It downloads the listed packages and any others
 needed to satisfy their dependencies from the main Ubuntu archive and
-passes them to `add-debs-to-pool`.
+passes them to `add-debs-to-pool`. Do read the note about GPG in the
+description of that action.
 
 ### unpack-initrd
 
