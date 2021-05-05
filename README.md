@@ -186,9 +186,9 @@ Add the passed deb files to the repository on the CD so that they are
 available for installation while the installer is running, even if the
 install is done offline.
 
-This will generate a new RSA 4096-bit GPG key, sign the package
-repository on the ISO with it, arrange for the public part to end up
-in `/etc/apt/trusted.gpg.d` in the installed system and then throw the
+This will generate a new Ed25519 GPG key, sign the package repository
+on the ISO with it, arrange for the public part to end up in
+`/etc/apt/trusted.gpg.d` in the installed system, and then throw the
 private part away. You should be aware of this change to the default
 apt configuration!
 

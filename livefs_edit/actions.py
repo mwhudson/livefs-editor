@@ -113,8 +113,8 @@ def add_debs_to_pool(ctxt, debs: List[str]):
     with open(gpgconf, 'x') as c:
         c.write("""\
 %no-protection
-Key-Type: RSA
-Key-Length: 1024
+Key-Type: eddsa
+Key-Curve: Ed25519
 Key-Usage: sign
 Name-Real: Ubuntu Custom ISO One-Time Signing Key
 Name-Email: noone@nowhere.invalid
