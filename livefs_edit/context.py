@@ -38,7 +38,12 @@ class EditContext:
         self._mounts.append(mountpoint)
         return mountpoint
 
+    def umount(self, mountpoint):
+        self._mounts.remove(mountpoint)
+        run(['umount', mountpoint])
+
     def add_sys_mounts(self, mountpoint):
+        mnts = []
         for typ, relpath in [
                 ('devtmpfs',   'dev'),
                 ('devpts',     'dev/pts'),
@@ -46,12 +51,14 @@ class EditContext:
                 ('sysfs',      'sys'),
                 ('securityfs', 'sys/kernel/security'),
                 ]:
-            self.add_mount(typ, typ, f'{mountpoint}/{relpath}')
+            mnts.append(self.add_mount(typ, typ, f'{mountpoint}/{relpath}'))
         resolv_conf = f'{mountpoint}/etc/resolv.conf'
         os.rename(resolv_conf, resolv_conf + '.tmp')
         shutil.copy('/etc/resolv.conf', resolv_conf)
 
         def _pre_repack():
+            for mnt in reversed(mnts):
+                self.umount(mnt)
             os.rename(resolv_conf + '.tmp', resolv_conf)
 
         self.add_pre_repack_hook(_pre_repack)
@@ -106,6 +113,34 @@ class EditContext:
         self.add_pre_repack_hook(_pre_repack)
 
         return self._rootfs_dir
+
+    def edit_squashfs(self, name, *, add_sys_mounts=True):
+        lower = self.mount_squash(name)
+        upper = self.tmpdir()
+        target = self.p(f'new/{name}')
+        if os.path.exists(target):
+            return
+        self.add_overlay(lower, target, upper=upper)
+        print("squashfs %r now mounted at %r" % (name, target))
+        new_squash = self.p(f'new/iso/casper/{name}.squashfs')
+
+        def _pre_repack():
+            try:
+                os.unlink(f'{upper}/etc/resolv.conf')
+                os.rmdir(f'{upper}/etc')
+            except OSError:
+                pass
+            if os.listdir(upper) == []:
+                print("no changes found in squashfs %r" % (name,))
+                return
+            print("repacking squashfs %r" % (name,))
+            os.unlink(new_squash)
+            run(['mksquashfs', target, new_squash])
+
+        self.add_pre_repack_hook(_pre_repack)
+
+        if add_sys_mounts:
+            self.add_sys_mounts(target)
 
     def teardown(self):
         for mount in reversed(self._mounts):

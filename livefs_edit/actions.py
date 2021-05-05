@@ -97,6 +97,10 @@ def add_cmdline_arg(ctxt, arg, persist: bool = True):
                 outfp.write(line)
 
 
+def edit_squashfs(ctxt, squash_name, add_sys_mounts=True):
+    ctxt.edit_squashfs(squash_name, add_sys_mounts=add_sys_mounts)
+
+
 def add_autoinstall_cfg(ctxt, autoinstall_config):
     rootfs = ctxt.rootfs()
     shutil.copy(autoinstall_config, os.path.join(rootfs, 'autoinstall.yaml'))
@@ -180,10 +184,12 @@ def add_to_pipeline(prev_proc, cmds, env=None, **kw):
         stdin.close()
     return proc
 
+
 def pack_for_initrd(dir, compress, outfile):
     find = add_to_pipeline(None, ['find', '.'], cwd=dir)
     sort = add_to_pipeline(find, ['sort'], env={'LC_ALL': 'C'})
-    cpio = add_to_pipeline(sort, ['cpio', '-R', '0:0', '-o', '-H', 'newc'], cwd=dir)
+    cpio = add_to_pipeline(
+        sort, ['cpio', '-R', '0:0', '-o', '-H', 'newc'], cwd=dir)
     if dir == 'main':
         compress = add_to_pipeline(cpio, ['gzip'], stdout=outfile)
     else:

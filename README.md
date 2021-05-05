@@ -147,6 +147,19 @@ alongside the snap, this will be copied into the ISO too and the snap
 set up to track the passed channel, otherwise it is installed
 unasserted.
 
+### edit-squashfs
+
+**argument**: `name`
+
+**argument**: `add_sys_mounts` (default: `true`)
+
+Mount the squashfs named `name` (most likely `"filesystem"`) at
+`new/{name}` and arrange for it be repacked if there are any changes
+before the new ISO is made.
+
+`add_sys_mounts` controls whether the usual chroot setup stuff is done
+(mounting /dev, /proc/ etc, setting up /etc/resolv.conf).
+
 ### add-cmdline-arg
 
 **argument**: `arg`
