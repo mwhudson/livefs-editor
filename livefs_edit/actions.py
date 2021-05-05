@@ -63,7 +63,7 @@ def inject_snap(ctxt, snap, channel="stable"):
     shutil.copy(snap, f'{seed_dir}/snaps/{snap_file}.snap')
     assert_file = os.path.splitext(snap)[0] + '.assert'
     if os.path.exists(assert_file):
-        shutil.copy(snap, f'{seed_dir}/assertions/{snap_file}.assert')
+        shutil.copy(assert_file, f'{seed_dir}/assertions/{snap_file}.assert')
     else:
         new_snap["unasserted"] = True
 
@@ -76,8 +76,9 @@ def inject_snap(ctxt, snap, channel="stable"):
 
 def add_cmdline_arg(ctxt, arg, persist: bool = True):
     cfgs = [
-        'boot/grub/grub.cfg',
-        'isolinux/txt.cfg',
+        'boot/grub/grub.cfg',    # grub, most arches
+        'isolinux/txt.cfg',      # isolinux, BIOS amd64/i386 <= focal
+        'boot/parmfile.ubuntu',  # s390x
         ]
     for path in cfgs:
         p = ctxt.p('new/iso/' + path)
@@ -101,7 +102,7 @@ def edit_squashfs(ctxt, squash_name, add_sys_mounts=True):
     ctxt.edit_squashfs(squash_name, add_sys_mounts=add_sys_mounts)
 
 
-def add_autoinstall_cfg(ctxt, autoinstall_config):
+def add_autoinstall_config(ctxt, autoinstall_config):
     rootfs = ctxt.rootfs()
     shutil.copy(autoinstall_config, os.path.join(rootfs, 'autoinstall.yaml'))
     add_cmdline_arg(ctxt, 'autoinstall', persist=False)
