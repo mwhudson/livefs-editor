@@ -189,7 +189,10 @@ default. This also adds "autoinstall" to the default kernel command
 line.
 
 `autoinstall_config` is the path to a YAML file which can contain
-either the autoinstall config directly or a cloud-init user-data file.
+either the autoinstall config directly or a cloud-init user-data file
+(in which case it can contain other configuration for the live
+installer session, such as ssh keys to be used for the `installer`
+user).
 
 ### add-debs-to-pool
 

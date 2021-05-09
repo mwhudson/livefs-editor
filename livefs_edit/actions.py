@@ -103,17 +103,21 @@ def edit_squashfs(ctxt, squash_name, add_sys_mounts=True):
 
 
 def add_autoinstall_config(ctxt, autoinstall_config):
+    seed_dir = 'var/lib/cloud/seed/nocloud'
+    CC_PREFIX = '#cloud-config\n'
+
     rootfs = ctxt.rootfs()
     is_cc = False
     with open(autoinstall_config) as fp:
         first_line = fp.readline()
-        if first_line == '#cloud-config\n':
+        if first_line == CC_PREFIX:
             is_cc = True
-    with open(autoinstall_config) as fp:
-        config = yaml.safe_load(fp)
-    if is_cc:
-        config = config['autoinstall']
-    with open(os.path.join(rootfs, 'autoinstall.yaml'), 'w') as fp:
+            first_line = ''
+        config = yaml.safe_load(first_line + fp.read())
+    if not is_cc:
+        config = {'autoinstall': config}
+    with open(os.path.join(rootfs, seed_dir, 'user-data'), 'w') as fp:
+        fp.write(CC_PREFIX)
         yaml.dump(config, fp)
     add_cmdline_arg(ctxt, 'autoinstall', persist=False)
 
