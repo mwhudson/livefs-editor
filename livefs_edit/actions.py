@@ -141,14 +141,16 @@ Expire-Date: 0
     for deb in debs:
         shutil.copy(deb, pool)
     arch = ctxt.get_arch()
-    packages = ctxt.p(f'new/iso/dists/stable/main/binary-{arch}/Packages.gz')
+    packages = ctxt.p(f'new/iso/dists/stable/main/binary-{arch}/Packages')
     cp = run(
         [
             'apt-ftparchive', '--md5=off', '--sha1=off',
             'packages', 'pool/main',
         ],
         cwd=ctxt.p('new/iso'), stdout=subprocess.PIPE)
-    with gzip.open(packages, 'wb') as new_packages:
+    with open(packages, 'wb') as new_packages:
+        new_packages.write(cp.stdout)
+    with gzip.open(packages + '.gz', 'wb') as new_packages:
         new_packages.write(cp.stdout)
     release = ctxt.p(f'new/iso/dists/stable/Release')
     with open(release) as o:
@@ -162,6 +164,9 @@ Expire-Date: 0
             'release', 'dists/stable',
         ],
         cwd=ctxt.p('new/iso'), stdout=subprocess.PIPE)
+    # The uncompressed Packages file has to be around when
+    # apt-ftparchive release is run, but it can be deleted now.
+    os.unlink(packages)
     new = deb822.Deb822(cp.stdout)
     for k in old:
         if k in new:
