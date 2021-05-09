@@ -197,6 +197,7 @@ def add_packages_to_pool(ctxt, packages: List[str]):
     print('  ** updating apt lists... **')
     cache.update(AcquireProgress())
     print('  ** updating apt lists done **')
+    cache.open()
     for p in packages:
         print('marking', p, 'for installation')
         cache[p].mark_install()
