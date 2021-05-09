@@ -188,6 +188,9 @@ Add the provided autoinstall config to the ISO so it is used by
 default. This also adds "autoinstall" to the default kernel command
 line.
 
+`autoinstall_config` is the path to a YAML file which can contain
+either the autoinstall config directly or a cloud-init user-data file.
+
 ### add-debs-to-pool
 
 **argument**: list of deb files

@@ -104,7 +104,17 @@ def edit_squashfs(ctxt, squash_name, add_sys_mounts=True):
 
 def add_autoinstall_config(ctxt, autoinstall_config):
     rootfs = ctxt.rootfs()
-    shutil.copy(autoinstall_config, os.path.join(rootfs, 'autoinstall.yaml'))
+    is_cc = False
+    with open(autoinstall_config) as fp:
+        first_line = fp.readline()
+        if first_line == '#cloud-config\n':
+            is_cc = True
+    with open(autoinstall_config) as fp:
+        config = yaml.safe_load(fp)
+    if is_cc:
+        config = config['autoinstall']
+    with open(os.path.join(rootfs, 'autoinstall.yaml'), 'w') as fp:
+        yaml.dump(config, fp)
     add_cmdline_arg(ctxt, 'autoinstall', persist=False)
 
 
