@@ -8,10 +8,20 @@ import yaml
 from . import run
 
 
+ACTIONS = {}
+
+
+def register_action(func):
+    ACTIONS[func.__name__.replace('_', '-')] = func
+    return func
+
+
+@register_action
 def setup_rootfs(ctxt, target='rootfs'):
     ctxt.rootfs(target)
 
 
+@register_action
 def shell(ctxt, command=None):
     cmd = ['bash']
     if command is not None:
@@ -19,10 +29,12 @@ def shell(ctxt, command=None):
     run(cmd, cwd=ctxt.p())
 
 
+@register_action
 def cp(ctxt, source, dest):
     shutil.copy(source, ctxt.p(dest))
 
 
+@register_action
 def inject_snap(ctxt, snap, channel="stable"):
     rootfs = ctxt.rootfs()
     seed_dir = f'{rootfs}/var/lib/snapd/seed'
@@ -74,6 +86,7 @@ def inject_snap(ctxt, snap, channel="stable"):
     run(['/usr/lib/snapd/snap-preseed', rootfs])
 
 
+@register_action
 def add_cmdline_arg(ctxt, arg, persist: bool = True):
     cfgs = [
         'boot/grub/grub.cfg',    # grub, most arches
@@ -98,10 +111,12 @@ def add_cmdline_arg(ctxt, arg, persist: bool = True):
                 outfp.write(line)
 
 
+@register_action
 def edit_squashfs(ctxt, squash_name, add_sys_mounts=True):
     ctxt.edit_squashfs(squash_name, add_sys_mounts=add_sys_mounts)
 
 
+@register_action
 def add_autoinstall_config(ctxt, autoinstall_config):
     seed_dir = 'var/lib/cloud/seed/nocloud'
     CC_PREFIX = '#cloud-config\n'
@@ -122,6 +137,7 @@ def add_autoinstall_config(ctxt, autoinstall_config):
     add_cmdline_arg(ctxt, 'autoinstall', persist=False)
 
 
+@register_action
 def add_debs_to_pool(ctxt, debs: List[str]):
     gpgconf = ctxt.tmpfile()
     gpghome = ctxt.tmpdir()
@@ -189,6 +205,7 @@ Expire-Date: 0
         run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
 
 
+@register_action
 def add_packages_to_pool(ctxt, packages: List[str]):
     import apt_pkg
     from apt import Cache
@@ -253,6 +270,7 @@ def pack_for_initrd(dir, compress, outfile):
     compress.communicate()
 
 
+@register_action
 def unpack_initrd(ctxt, target='initrd'):
     target = ctxt.p(target)
     lower = ctxt.p('old/initrd')

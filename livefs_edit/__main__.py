@@ -4,8 +4,9 @@ import sys
 
 import yaml
 
+from livefs_edit import cli
 from livefs_edit.context import EditContext
-from livefs_edit import actions, cli
+from livefs_edit.actions import ACTIONS
 
 
 HELP_TXT = """
@@ -46,11 +47,11 @@ def main(argv):
             spec = yaml.load(fp)
         print(spec)
         for action in spec:
-            func = getattr(actions, action.pop('name').replace('-', '_'))
+            func = ACTIONS[action.pop('name')]
             calls.append((func, action))
     else:
         try:
-            calls = cli.parse(actions, argv[2:])
+            calls = cli.parse(ACTIONS, argv[2:])
         except cli.ArgException as e:
             print("parsing actions from command line failed:", e)
             sys.exit(1)

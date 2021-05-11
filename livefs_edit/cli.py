@@ -51,7 +51,7 @@ def args_for_func(func, raw_args):
     return kw
 
 
-def parse(action_mod, raw_args):
+def parse(actions, raw_args):
     calls = []
 
     func = None
@@ -74,7 +74,7 @@ def parse(action_mod, raw_args):
         if a.startswith('--'):
             dispatch()
             try:
-                func = getattr(action_mod, a[2:].replace('-', '_'))
+                func = actions[a[2:]]
             except AttributeError:
                 raise ArgException("unknown action %r" % (a[2:]))
         elif func is None:
