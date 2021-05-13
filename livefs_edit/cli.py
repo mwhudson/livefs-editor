@@ -26,7 +26,7 @@ def args_for_func(func, raw_args):
         last_arg_name = None
     for i, a in enumerate(raw_args):
         if '=' in a:
-            k, v = a.split('=')
+            k, v = a.split('=', 1)
             if k == last_arg_name:
                 raise ArgException(
                     "cannot specify list-valued argument %r by name" % k)
