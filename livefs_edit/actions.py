@@ -271,7 +271,7 @@ def pack_for_initrd(dir, compress, outfile):
 
 
 @register_action
-def unpack_initrd(ctxt, target='initrd'):
+def unpack_initrd(ctxt, target='new/initrd'):
     target = ctxt.p(target)
     lower = ctxt.p('old/initrd')
     arch = ctxt.get_arch()
@@ -288,8 +288,8 @@ def unpack_initrd(ctxt, target='initrd'):
             if os.listdir(upper) == []:
                 # Don't slowly repack initrd if no changes made to it.
                 return
-            print('repacking initrd...')
-            with open(ctxt.p('new/iso/{initrd_path}'), 'wb') as out:
+            print('repacking initrd to', initrd_path, '...')
+            with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
                 for dir in sorted(os.listdir(target)):
                     print("  packing", dir)
                     pack_for_initrd(f'{target}/{dir}', dir == "main", out)

@@ -222,7 +222,7 @@ description of that action.
 
 ### unpack-initrd
 
-**argument**: `target` (default: `"initrd"`)
+**argument**: `target` (default: `"new/initrd"`)
 
 Unpack the initrd using unmkinitramfs into `target` (contents will
 likely end up in subdirectories called things like `early`, `early2`
