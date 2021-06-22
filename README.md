@@ -49,25 +49,8 @@ On the command line, actions and arguments are specified like:
 --action-name arg1 arg2 --next-action-name
 ```
 
-Arguments can be passed positionally:
-
-```
---cp source/path dest/path
-```
-
-Or by name:
-
-```
---cp source=source/path dest=dest/path
-```
-
-Apart from arguments that are a list, such as a list of package
-names. These are always the last (in fact only, at the time of writing)
-argument and are just space separated:
-
-```
---add-packages-to-pool binutils gdb
-```
+Arguments that are interpreted as boolean interpret 'on', 'yes',
+'true' (case insensitively) as true.
 
 Alternatively (if shell quoting starts to get painful), the actions
 can be passed as a YAML file, using the `--action-yaml` flag:

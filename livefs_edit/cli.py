@@ -25,29 +25,18 @@ def args_for_func(func, raw_args):
     else:
         last_arg_name = None
     for i, a in enumerate(raw_args):
-        if '=' in a:
-            k, v = a.split('=', 1)
-            if k == last_arg_name:
-                raise ArgException(
-                    "cannot specify list-valued argument %r by name" % k)
-            if k not in params:
-                raise ArgException("unknown argument %r" % (k,))
-            if k in kw:
-                raise ArgException("multiple values for %r" % (k,))
-            kw[k] = _conv(params[k].annotation, v)
+        if i >= len(param_list):
+            if last_arg_name is None:
+                raise ArgException("too many arguments")
+            kw.setdefault(last_arg_name, []).append(a)
         else:
-            if i >= len(param_list):
-                if last_arg_name is None:
-                    raise ArgException("too many arguments")
-                kw.setdefault(last_arg_name, []).append(a)
-            else:
-                p = param_list[i]
-                if p.name == last_arg_name:
-                    kw[p.name] = [a]
-                    continue
-                if p.name in kw:
-                    raise ArgException("multiple values for %r" % (p.name,))
-                kw[p.name] = _conv(p.annotation, a)
+            p = param_list[i]
+            if p.name == last_arg_name:
+                kw[p.name] = [a]
+                continue
+            if p.name in kw:
+                raise ArgException("multiple values for %r" % (p.name,))
+            kw[p.name] = _conv(p.annotation, a)
     return kw
 
 
