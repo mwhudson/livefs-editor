@@ -87,6 +87,19 @@ def inject_snap(ctxt, snap, channel="stable"):
 
 
 @register_action
+def add_snap_from_store(ctxt, snap_name, channel="stable"):
+    dldir = ctxt.tmpdir()
+    run([
+        'snap', 'download',
+        '--channel=' + channel,
+        '--target-directory=' + dldir,
+        '--basename=dl',
+        snap_name,
+        ])
+    inject_snap(ctxt, os.path.join(dldir, 'dl.snap'), channel)
+
+
+@register_action
 def add_cmdline_arg(ctxt, arg, persist: bool = True):
     cfgs = [
         'boot/grub/grub.cfg',    # grub, most arches
