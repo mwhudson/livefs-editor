@@ -15,6 +15,7 @@ class EditContext:
         self.iso_path = iso_path
         self.dir = tempfile.mkdtemp()
         os.mkdir(self.p('.tmp'))
+        self._initrd_dir = None
         self._rootfs_dir = None
         self._pre_repack_hooks = []
         self._mounts = []
@@ -90,32 +91,6 @@ class EditContext:
         # Is this really the best way??
         with open(self.p('new/iso/.disk/info')) as fp:
             return fp.read().strip().split()[-2]
-
-    def rootfs(self, target='rootfs'):
-        if self._rootfs_dir is not None:
-            return self._rootfs_dir
-        self._rootfs_dir = self.p(target)
-        squashes = sorted(glob.glob(self.p('old/iso/casper/*.squashfs')))
-        lowers = []
-        for squash in squashes:
-            name = os.path.splitext(os.path.basename(squash))[0]
-            lowers.append(self.mount_squash(name))
-        lower = ':'.join(reversed(lowers))
-        upper = self.tmpdir()
-        self.add_overlay(lower, self._rootfs_dir, upper=upper)
-        self.add_sys_mounts(self._rootfs_dir)
-
-        last_squash = squashes[-1]
-        base = os.path.basename(last_squash)
-        new_squash = self.p('new/iso/casper/' + chr(ord(base[0])+1) + base[1:])
-
-        def _pre_repack():
-            if os.listdir(upper) != []:
-                run(['mksquashfs', upper, new_squash])
-
-        self.add_pre_repack_hook(_pre_repack)
-
-        return self._rootfs_dir
 
     def edit_squashfs(self, name, *, add_sys_mounts=True):
         lower = self.mount_squash(name)

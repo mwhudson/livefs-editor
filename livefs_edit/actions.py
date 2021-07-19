@@ -1,5 +1,7 @@
+import glob
 import gzip
 import os
+import shlex
 import shutil
 import subprocess
 from typing import List
@@ -16,9 +18,66 @@ def register_action(func):
     return func
 
 
+def get_layerfs_path(ctxt):
+    cmdline_val = get_cmdline_arg(ctxt, 'layerfs-path')
+    if cmdline_val is not None:
+        return cmdline_val
+    initrd_path = unpack_initrd(ctxt)
+    if 'main' in os.listdir(initrd_path):
+        initrd_path = initrd_path + '/main'
+    layer_conf_path = f'{initrd_path}/conf/conf.d/default-layer.conf'
+    if os.path.exists(layer_conf_path):
+        with open(layer_conf_path) as fp:
+            for line in fp:
+                line = line.strip()
+                if line.startswith('LAYERFS_PATH='):
+                    return line[len('LAYERFS_PATH='):]
+
+
 @register_action
 def setup_rootfs(ctxt, target='rootfs'):
-    ctxt.rootfs(target)
+    if ctxt._rootfs_dir is not None:
+        return ctxt._rootfs_dir
+    ctxt._rootfs_dir = ctxt.p(target)
+
+    layerfs_path = get_layerfs_path(ctxt)
+    if layerfs_path:
+        parts = os.path.splitext(layerfs_path)[0].split('.')
+        fnames = []
+        for i in range(0, len(parts)):
+            fnames.append('.'.join(parts[:i+1]))
+        squashes = [
+            ctxt.p(f'old/iso/casper/{fname}.squashfs') for fname in fnames]
+        print(squashes)
+    else:
+        squashes = sorted(glob.glob(ctxt.p('old/iso/casper/*.squashfs')))
+    lowers = []
+    for squash in squashes:
+        name = os.path.splitext(os.path.basename(squash))[0]
+        lowers.append(ctxt.mount_squash(name))
+    lower = ':'.join(reversed(lowers))
+    upper = ctxt.tmpdir()
+    ctxt.add_overlay(lower, ctxt._rootfs_dir, upper=upper)
+    ctxt.add_sys_mounts(ctxt._rootfs_dir)
+
+    last_squash = squashes[-1]
+    base = os.path.basename(last_squash)
+    if layerfs_path is not None:
+        new_squash_name = os.path.splitext(base)[0] + '.custom.squashfs'
+    else:
+        new_squash_name = chr(ord(base[0])+1) + base[1:]
+    new_squash = ctxt.p('new/iso/casper/' + new_squash_name)
+
+    def _pre_repack():
+        if os.listdir(upper) != []:
+            run(['mksquashfs', upper, new_squash])
+            if layerfs_path is not None:
+                add_cmdline_arg(
+                    ctxt, "layerfs-path=" + new_squash_name, persist=False)
+
+    ctxt.add_pre_repack_hook(_pre_repack)
+
+    return ctxt._rootfs_dir
 
 
 @register_action
@@ -36,7 +95,7 @@ def cp(ctxt, source, dest):
 
 @register_action
 def inject_snap(ctxt, snap, channel="stable"):
-    rootfs = ctxt.rootfs()
+    rootfs = setup_rootfs(ctxt)
     seed_dir = f'{rootfs}/var/lib/snapd/seed'
     snap_mount = ctxt.tmpdir()
     ctxt.add_mount('squashfs', snap, snap_mount)
@@ -99,8 +158,7 @@ def add_snap_from_store(ctxt, snap_name, channel="stable"):
     inject_snap(ctxt, os.path.join(dldir, 'dl.snap'), channel)
 
 
-@register_action
-def add_cmdline_arg(ctxt, arg, persist: bool = True):
+def cmdline_config_files(ctxt):
     cfgs = [
         'boot/grub/grub.cfg',    # grub, most arches
         'isolinux/txt.cfg',      # isolinux, BIOS amd64/i386 <= focal
@@ -110,10 +168,16 @@ def add_cmdline_arg(ctxt, arg, persist: bool = True):
         p = ctxt.p('new/iso/' + path)
         if not os.path.exists(p):
             continue
+        yield p
+
+
+@register_action
+def add_cmdline_arg(ctxt, arg, persist: bool = True):
+    for path in cmdline_config_files(ctxt):
         print('rewriting', path)
-        with open(p) as fp:
+        with open(path) as fp:
             inputlines = list(fp)
-        with open(p, 'w') as outfp:
+        with open(path, 'w') as outfp:
             for line in inputlines:
                 if '---' in line:
                     if persist:
@@ -122,6 +186,17 @@ def add_cmdline_arg(ctxt, arg, persist: bool = True):
                         before, after = line.split('---', 1)
                         line = before.rstrip() + ' ' + arg + ' ---' + after
                 outfp.write(line)
+
+
+def get_cmdline_arg(ctxt, key):
+    for path in cmdline_config_files(ctxt):
+        with open(path) as fp:
+            for line in fp:
+                if '---' in line:
+                    words = shlex.split(line)
+                    for word in words:
+                        if word.startswith(key + '='):
+                            return word[len(key) + 1:]
 
 
 @register_action
@@ -134,7 +209,7 @@ def add_autoinstall_config(ctxt, autoinstall_config):
     seed_dir = 'var/lib/cloud/seed/nocloud'
     CC_PREFIX = '#cloud-config\n'
 
-    rootfs = ctxt.rootfs()
+    rootfs = setup_rootfs(ctxt)
     is_cc = False
     with open(autoinstall_config) as fp:
         first_line = fp.readline()
@@ -285,7 +360,9 @@ def pack_for_initrd(dir, compress, outfile):
 
 @register_action
 def unpack_initrd(ctxt, target='new/initrd'):
-    target = ctxt.p(target)
+    if ctxt._initrd_dir is not None:
+        return ctxt._initrd_dir
+    ctxt._initrd_dir = ctxt.p(target)
     lower = ctxt.p('old/initrd')
     arch = ctxt.get_arch()
     if arch == 's390x':
@@ -294,18 +371,19 @@ def unpack_initrd(ctxt, target='new/initrd'):
         initrd_path = 'casper/initrd'
     run(['unmkinitramfs', ctxt.p(f'new/iso/{initrd_path}'), lower])
     upper = ctxt.tmpdir()
-    ctxt.add_overlay(lower, target, upper=upper)
+    ctxt.add_overlay(lower, ctxt._initrd_dir, upper=upper)
 
-    if 'early' in os.listdir(target):
+    if 'early' in os.listdir(ctxt._initrd_dir):
         def _pre_repack_multi():
             if os.listdir(upper) == []:
                 # Don't slowly repack initrd if no changes made to it.
                 return
             print('repacking initrd to', initrd_path, '...')
             with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
-                for dir in sorted(os.listdir(target)):
+                for dir in sorted(os.listdir(ctxt._initrd_dir)):
                     print("  packing", dir)
-                    pack_for_initrd(f'{target}/{dir}', dir == "main", out)
+                    pack_for_initrd(
+                        f'{ctxt._initrd_dir}/{dir}', dir == "main", out)
 
             print("  ... done")
 
@@ -317,7 +395,9 @@ def unpack_initrd(ctxt, target='new/initrd'):
                 return
             print('repacking initrd...')
             with open(ctxt.p('new/iso/{initrd_path}'), 'wb') as out:
-                pack_for_initrd(target, True, out)
+                pack_for_initrd(ctxt._initrd_dir, True, out)
             print("  ... done")
 
         ctxt.add_pre_repack_hook(_pre_repack_single)
+
+    return ctxt._initrd_dir
