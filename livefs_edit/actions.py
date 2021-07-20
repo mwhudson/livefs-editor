@@ -90,7 +90,7 @@ def shell(ctxt, command=None):
 
 @register_action
 def cp(ctxt, source, dest):
-    shutil.copy(source, ctxt.p(dest))
+    shutil.copy(ctxt.p(source), ctxt.p(dest))
 
 
 @register_action
