@@ -37,6 +37,8 @@ def main(argv):
 
     isopath = argv[0]
     destpath = argv[1]
+    if destpath == '/dev/null':
+        destpath = None
 
     ctxt = EditContext(isopath)
     ctxt.mount_iso()
@@ -63,7 +65,8 @@ def main(argv):
                 "with arguments", kw)
             func(ctxt, **kw)
 
-        ctxt.repack_iso(destpath)
+        if destpath is not None:
+            ctxt.repack_iso(destpath)
     finally:
         ctxt.teardown()
 
