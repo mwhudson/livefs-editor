@@ -119,8 +119,8 @@ code, that aborts the run.
 
 **argument**: `dest`
 
-Copy a file. `dest` is assumed to be relative to the main temporary
-directory. So something like this:
+Copy a file. If `source` or `dest` are relative they are assumed to be
+relative to the main temporary directory. So something like this:
 
 ```
 --cp /my/custom/initrd new/iso/casper/initrd
@@ -140,15 +140,23 @@ alongside the snap, this will be copied into the ISO too and the snap
 set up to track the passed channel, otherwise it is installed
 unasserted.
 
+### add-snap-from-store
+
+**argument**: `snap_name`
+
+**argument**: `channel` (default: `"stable"`)
+
+A wrapper around `--inject-snap`` that downloads the specified snap
+from the store first.
+
 ### edit-squashfs
 
 **argument**: `name`
 
 **argument**: `add_sys_mounts` (default: `true`)
 
-Mount the squashfs named `name` (most likely `"filesystem"`) at
-`new/{name}` and arrange for it be repacked if there are any changes
-before the new ISO is made.
+Mount the squashfs named `name` at `new/{name}` and arrange for it be
+repacked if there are any changes before the new ISO is made.
 
 `add_sys_mounts` controls whether the usual chroot setup stuff is done
 (mounting /dev, /proc/ etc, setting up /etc/resolv.conf).
