@@ -124,7 +124,8 @@ class EditContext:
 
     def teardown(self):
         for mount in reversed(self._mounts):
-            run(['umount', '-l', mount])
+            run(['mount', '--make-rprivate', mount])
+            run(['umount', '-R', mount])
         shutil.rmtree(self.dir)
 
     def mount_iso(self):
