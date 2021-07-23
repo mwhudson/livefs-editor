@@ -19,8 +19,11 @@ def register_action(func):
 
 
 def get_layerfs_path(ctxt):
+    if ctxt._layerfs_path != -1:
+        return ctxt._layerfs_path
     cmdline_val = get_cmdline_arg(ctxt, 'layerfs-path')
     if cmdline_val is not None:
+        ctxt._layerfs_path = cmdline_val
         return cmdline_val
     initrd_path = unpack_initrd(ctxt)
     if 'main' in os.listdir(initrd_path):
@@ -31,7 +34,26 @@ def get_layerfs_path(ctxt):
             for line in fp:
                 line = line.strip()
                 if line.startswith('LAYERFS_PATH='):
-                    return line[len('LAYERFS_PATH='):]
+                    ctxt._layerfs_path = line[len('LAYERFS_PATH='):]
+                    return ctxt._layerfs_path
+    ctxt._layerfs_path = None
+    return None
+
+
+def get_squash_names(ctxt):
+    if ctxt._rootfs_squash_names is None:
+        layerfs_path = get_layerfs_path(ctxt)
+        if layerfs_path:
+            parts = os.path.splitext(layerfs_path)[0].split('.')
+            basenames = []
+            for i in range(0, len(parts)):
+                basenames.append('.'.join(parts[:i+1]))
+        else:
+            basenames = []
+            for path in glob.glob(ctxt.p('old/iso/casper/*.squashfs')):
+                basenames.append(os.path.splitext(os.path.basename(path)[0]))
+        ctxt._rootfs_squash_names = basenames
+    return ctxt._rootfs_squash_names
 
 
 @register_action
@@ -40,40 +62,30 @@ def setup_rootfs(ctxt, target='rootfs'):
         return ctxt._rootfs_dir
     ctxt._rootfs_dir = ctxt.p(target)
 
-    layerfs_path = get_layerfs_path(ctxt)
-    if layerfs_path:
-        parts = os.path.splitext(layerfs_path)[0].split('.')
-        fnames = []
-        for i in range(0, len(parts)):
-            fnames.append('.'.join(parts[:i+1]))
-        squashes = [
-            ctxt.p(f'old/iso/casper/{fname}.squashfs') for fname in fnames]
-        print(squashes)
-    else:
-        squashes = sorted(glob.glob(ctxt.p('old/iso/casper/*.squashfs')))
+    squash_names = get_squash_names(ctxt)
     lowers = []
-    for squash in squashes:
-        name = os.path.splitext(os.path.basename(squash))[0]
+    for name in squash_names:
         lowers.append(ctxt.mount_squash(name))
     lower = ':'.join(reversed(lowers))
     upper = ctxt.tmpdir()
     ctxt.add_overlay(lower, ctxt._rootfs_dir, upper=upper)
     ctxt.add_sys_mounts(ctxt._rootfs_dir)
 
-    last_squash = squashes[-1]
-    base = os.path.basename(last_squash)
+    layerfs_path = get_layerfs_path(ctxt)
+    last_squash = squash_names[-1]
     if layerfs_path is not None:
-        new_squash_name = os.path.splitext(base)[0] + '.custom.squashfs'
+        new_squash_name = last_squash + '.custom'
     else:
-        new_squash_name = chr(ord(base[0])+1) + base[1:]
-    new_squash = ctxt.p('new/iso/casper/' + new_squash_name)
+        new_squash_name = chr(ord(last_squash[0])+1) + last_squash[1:]
+    new_squash = ctxt.p('new/iso/casper/{}.squashfs'.format(new_squash_name))
 
     def _pre_repack():
         if os.listdir(upper) != []:
             run(['mksquashfs', upper, new_squash])
             if layerfs_path is not None:
                 add_cmdline_arg(
-                    ctxt, "layerfs-path=" + new_squash_name, persist=False)
+                    ctxt, "layerfs-path={}.squashfs".format(new_squash_name),
+                    persist=False)
 
     ctxt.add_pre_repack_hook(_pre_repack)
 
@@ -226,7 +238,7 @@ def add_autoinstall_config(ctxt, autoinstall_config):
 
 
 @register_action
-def add_debs_to_pool(ctxt, debs: List[str]):
+def add_debs_to_pool(ctxt, debs: List[str] = ()):
     gpgconf = ctxt.tmpfile()
     gpghome = ctxt.tmpdir()
     with open(gpgconf, 'x') as c:
@@ -287,7 +299,7 @@ Expire-Date: 0
     run(['gpg', '--home', gpghome, '--detach-sign', '--armor', release])
     os.rename(release + '.asc', release + '.gpg')
 
-    new_fs = ctxt.edit_squashfs('filesystem')
+    new_fs = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
     key_path = f'{new_fs}/etc/apt/trusted.gpg.d/custom-iso-key.gpg'
     with open(key_path, 'w') as new_key:
         run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
@@ -298,7 +310,7 @@ def add_packages_to_pool(ctxt, packages: List[str]):
     import apt_pkg
     from apt import Cache
     from apt.progress.text import AcquireProgress
-    fs = ctxt.mount_squash('filesystem')
+    fs = ctxt.mount_squash(get_squash_names(ctxt)[0])
     overlay = ctxt.add_overlay(fs)
     for key in apt_pkg.config.list():
         apt_pkg.config.clear(key)

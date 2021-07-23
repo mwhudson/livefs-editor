@@ -1,10 +1,8 @@
-import glob
 import os
 import shlex
 import shutil
 import subprocess
 import tempfile
-import time
 
 from . import run
 
@@ -17,6 +15,8 @@ class EditContext:
         os.mkdir(self.p('.tmp'))
         self._initrd_dir = None
         self._rootfs_dir = None
+        self._layerfs_path = -1
+        self._rootfs_squash_names = None
         self._pre_repack_hooks = []
         self._mounts = []
 
