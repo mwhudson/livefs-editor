@@ -363,7 +363,7 @@ def pack_for_initrd(dir, compress, outfile):
     sort = add_to_pipeline(find, ['sort'], env={'LC_ALL': 'C'})
     cpio = add_to_pipeline(
         sort, ['cpio', '-R', '0:0', '-o', '-H', 'newc'], cwd=dir)
-    if dir == 'main':
+    if compress:
         compress = add_to_pipeline(cpio, ['gzip'], stdout=outfile)
     else:
         compress = add_to_pipeline(cpio, ['cat'], stdout=outfile)
@@ -406,7 +406,7 @@ def unpack_initrd(ctxt, target='new/initrd'):
                 # Don't slowly repack initrd if no changes made to it.
                 return
             print('repacking initrd...')
-            with open(ctxt.p('new/iso/{initrd_path}'), 'wb') as out:
+            with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
                 pack_for_initrd(ctxt._initrd_dir, True, out)
             print("  ... done")
 
