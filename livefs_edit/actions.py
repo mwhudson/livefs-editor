@@ -51,7 +51,7 @@ def get_squash_names(ctxt):
         else:
             basenames = []
             for path in glob.glob(ctxt.p('old/iso/casper/*.squashfs')):
-                basenames.append(os.path.splitext(os.path.basename(path)[0]))
+                basenames.append(os.path.splitext(os.path.basename(path))[0])
         ctxt._rootfs_squash_names = basenames
     return ctxt._rootfs_squash_names
 
