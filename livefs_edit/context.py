@@ -21,7 +21,9 @@ class EditContext:
         self._mounts = []
 
     def tmpdir(self):
-        return tempfile.mkdtemp(dir=self.p('.tmp'))
+        d = tempfile.mkdtemp(dir=self.p('.tmp'))
+        os.chmod(d, 0o755)
+        return d
 
     def tmpfile(self):
         return tempfile.mktemp(dir=self.p('.tmp'))
