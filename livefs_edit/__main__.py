@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import os
 import sys
 
 import yaml
@@ -37,8 +38,13 @@ def main(argv):
 
     isopath = argv[0]
     destpath = argv[1]
+
+    inplace = False
     if destpath == '/dev/null':
         destpath = None
+    elif destpath == isopath:
+        destpath = destpath + '.new'
+        inplace = True
 
     ctxt = EditContext(isopath)
     ctxt.mount_iso()
@@ -67,6 +73,8 @@ def main(argv):
 
         if destpath is not None:
             ctxt.repack_iso(destpath)
+            if inplace:
+                os.rename(destpath, isopath)
     finally:
         ctxt.teardown()
 
