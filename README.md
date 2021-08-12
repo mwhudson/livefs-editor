@@ -24,7 +24,8 @@ but I haven't thought very hard about that side of things yet.
 This script is pretty Linux-dependent and requires `xorriso` and
 `mksquashfs` to be available on `$PATH`.  Some actions require the
 `python3-debian` package to be installed and `gpg` command to be
-available.
+available. Operating on ISOs from some Ubuntu releases will also need
+lz4cat (to unpack the initrd) which is found in `liblz4-tool`.
 
 It needs to be run as root (although possibly using FUSE variants for
 all the mounts would allow it to run as a regular user, maybe).
