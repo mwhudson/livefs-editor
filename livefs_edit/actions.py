@@ -106,6 +106,20 @@ def cp(ctxt, source, dest):
 
 
 @register_action
+def install_debs(ctxt, debs: List[str] = ()):
+    rootfs = setup_rootfs(ctxt)
+    for i, deb in enumerate(debs):
+        deb_name = 'foo.deb'
+        rootfs_path = f'{rootfs}/{deb_name}'
+        with open(rootfs_path, 'x'):
+            pass
+        run(['mount', '--bind', deb, rootfs_path])
+        run(['chroot', rootfs, 'dpkg', '-i', deb_name])
+        run(['umount', rootfs_path])
+        os.unlink(rootfs_path)
+
+
+@register_action
 def inject_snap(ctxt, snap, channel="stable"):
     rootfs = setup_rootfs(ctxt)
     seed_dir = f'{rootfs}/var/lib/snapd/seed'
@@ -272,7 +286,7 @@ Expire-Date: 0
         new_packages.write(cp.stdout)
     with gzip.open(packages + '.gz', 'wb') as new_packages:
         new_packages.write(cp.stdout)
-    release = ctxt.p(f'new/iso/dists/stable/Release')
+    release = ctxt.p('new/iso/dists/stable/Release')
     with open(release) as o:
         old = deb822.Deb822(o)
     for p in release, release + '.gpg':
