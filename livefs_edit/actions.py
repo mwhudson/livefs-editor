@@ -1,3 +1,4 @@
+import enum
 import glob
 import gzip
 import os
@@ -18,13 +19,19 @@ def register_action(func):
     return func
 
 
+class LayerfsLoc(enum.Enum):
+    NONE = enum.auto()
+    CMDLINE = enum.auto()
+    INITRD = enum.auto()
+
+
 def get_layerfs_path(ctxt):
     if ctxt._layerfs_path != -1:
         return ctxt._layerfs_path
     cmdline_val = get_cmdline_arg(ctxt, 'layerfs-path')
     if cmdline_val is not None:
-        ctxt._layerfs_path = cmdline_val
-        return cmdline_val
+        ctxt._layerfs_path = cmdline_val, LayerfsLoc.CMDLINE
+        return ctxt._layerfs_path
     initrd_path = unpack_initrd(ctxt)
     if 'main' in os.listdir(initrd_path):
         initrd_path = initrd_path + '/main'
@@ -34,15 +41,17 @@ def get_layerfs_path(ctxt):
             for line in fp:
                 line = line.strip()
                 if line.startswith('LAYERFS_PATH='):
-                    ctxt._layerfs_path = line[len('LAYERFS_PATH='):]
+                    ctxt._layerfs_path = (
+                        line[len('LAYERFS_PATH='):], LayerfsLoc.INITRD)
                     return ctxt._layerfs_path
-    ctxt._layerfs_path = None
-    return None
+    r = (None, LayerfsLoc.NONE)
+    ctxt._layerfs_path = r
+    return r
 
 
 def get_squash_names(ctxt):
     if ctxt._rootfs_squash_names is None:
-        layerfs_path = get_layerfs_path(ctxt)
+        layerfs_path = get_layerfs_path(ctxt)[0]
         if layerfs_path:
             parts = os.path.splitext(layerfs_path)[0].split('.')
             basenames = []
@@ -71,7 +80,7 @@ def setup_rootfs(ctxt, target='rootfs'):
     ctxt.add_overlay(lower, ctxt._rootfs_dir, upper=upper)
     ctxt.add_sys_mounts(ctxt._rootfs_dir)
 
-    layerfs_path = get_layerfs_path(ctxt)
+    layerfs_path, layerfs_loc = get_layerfs_path(ctxt)
     last_squash = squash_names[-1]
     if layerfs_path is not None:
         new_squash_name = last_squash + '.custom'
@@ -80,12 +89,22 @@ def setup_rootfs(ctxt, target='rootfs'):
     new_squash = ctxt.p('new/iso/casper/{}.squashfs'.format(new_squash_name))
 
     def _pre_repack():
-        if os.listdir(upper) != []:
-            run(['mksquashfs', upper, new_squash])
-            if layerfs_path is not None:
-                add_cmdline_arg(
-                    ctxt, "layerfs-path={}.squashfs".format(new_squash_name),
-                    persist=False)
+        if os.listdir(upper) == []:
+            return
+        run(['mksquashfs', upper, new_squash])
+        if layerfs_loc == LayerfsLoc.CMDLINE:
+            add_cmdline_arg(
+                ctxt,
+                f"layerfs-path={new_squash_name}.squashfs",
+                persist=False)
+        elif layerfs_loc == LayerfsLoc.INITRD:
+            initrd_path = unpack_initrd(ctxt)
+            if 'main' in os.listdir(initrd_path):
+                initrd_path = initrd_path + '/main'
+            layer_conf_path = f'{initrd_path}/conf/conf.d/default-layer.conf'
+            with open(layer_conf_path, 'w') as fp:
+                fp.write(
+                    f"LAYERFS_PATH={new_squash_name}.squashfs\n")
 
     ctxt.add_pre_repack_hook(_pre_repack)
 
