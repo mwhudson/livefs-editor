@@ -8,16 +8,34 @@ import tempfile
 from . import run
 
 
+class Mountpoint:
+    def __init__(self, *, device, mountpoint):
+        self.device = device
+        self.mountpoint = mountpoint
+
+
+class OverlayMountpoint:
+    def __init__(self, *, lowers, upperdir, mountpoint):
+        self.lowers = lowers
+        self.upperdir = upperdir
+        self.mountpoint = mountpoint
+
+    def unchanged(self):
+        return os.listdir(self.upperdir) == []
+
+
 class EditContext:
 
     def __init__(self, iso_path):
         self.iso_path = iso_path
+        self._iso_overlay = None
         self.dir = tempfile.mkdtemp()
         os.mkdir(self.p('.tmp'))
         self._cache = {}
         self._indent = ''
         self._pre_repack_hooks = []
         self._mounts = []
+        self._squash_mounts = {}
 
     def log(self, msg):
         print(self._indent + msg)
@@ -44,9 +62,7 @@ class EditContext:
     def p(self, *args):
         return os.path.join(self.dir, *args)
 
-    def add_mount(self, typ, src, mountpoint=None, *, options=None):
-        if mountpoint is None:
-            mountpoint = self.tmpdir()
+    def add_mount(self, typ, src, mountpoint, *, options=None):
         cmd = ['mount', '-t', typ, src]
         if options:
             cmd.extend(['-o', options])
@@ -55,7 +71,7 @@ class EditContext:
             os.makedirs(mountpoint)
         run(cmd)
         self._mounts.append(mountpoint)
-        return mountpoint
+        return Mountpoint(device=src, mountpoint=mountpoint)
 
     def umount(self, mountpoint):
         self._mounts.remove(mountpoint)
@@ -77,20 +93,24 @@ class EditContext:
 
         def _pre_repack():
             for mnt in reversed(mnts):
-                self.umount(mnt)
+                self.umount(mnt.mountpoint)
             os.rename(resolv_conf + '.tmp', resolv_conf)
 
         self.add_pre_repack_hook(_pre_repack)
 
-    def add_overlay(self, lower, mountpoint=None, *, upper=None):
-        if upper is None:
-            upper = self.tmpdir()
-        elif not os.path.isdir(upper):
-            os.makedirs(upper)
-        work = self.tmpdir()
-        options = f'lowerdir={lower},upperdir={upper},workdir={work}'
-        return self.add_mount(
-            'overlay', 'overlay', mountpoint, options=options)
+    def add_overlay(self, lowers, mountpoint=None):
+        if not isinstance(lowers, list):
+            lowers = [lowers]
+        upperdir = self.tmpdir()
+        workdir = self.tmpdir()
+        lowerdir = ':'.join(reversed([
+            getattr(lower, 'mountpoint', lower) for lower in lowers]))
+        options = f'lowerdir={lowerdir},upperdir={upperdir},workdir={workdir}'
+        return OverlayMountpoint(
+            lowers=lowers,
+            mountpoint=self.add_mount(
+                'overlay', 'overlay', mountpoint, options=options).mountpoint,
+            upperdir=upperdir)
 
     def add_pre_repack_hook(self, hook):
         self._pre_repack_hooks.append(hook)
@@ -98,9 +118,12 @@ class EditContext:
     def mount_squash(self, name):
         target = self.p('old/' + name)
         squash = self.p(f'old/iso/casper/{name}.squashfs')
-        if not os.path.isdir(target):
-            self.add_mount('squashfs', squash, target, options='ro')
-        return target
+        if name in self._squash_mounts:
+            return self._squash_mounts[name]
+        else:
+            self._squash_mounts[name] = m = self.add_mount(
+                'squashfs', squash, target, options='ro')
+            return m
 
     def get_arch(self):
         # Is this really the best way??
@@ -109,21 +132,20 @@ class EditContext:
 
     def edit_squashfs(self, name, *, add_sys_mounts=True):
         lower = self.mount_squash(name)
-        upper = self.tmpdir()
         target = self.p(f'new/{name}')
         if os.path.exists(target):
             return target
-        self.add_overlay(lower, target, upper=upper)
+        overlay = self.add_overlay(lower, target)
         self.log(f"squashfs {name!r} now mounted at {target!r}")
         new_squash = self.p(f'new/iso/casper/{name}.squashfs')
 
         def _pre_repack():
             try:
-                os.unlink(f'{upper}/etc/resolv.conf')
-                os.rmdir(f'{upper}/etc')
+                os.unlink(f'{overlay.upperdir}/etc/resolv.conf')
+                os.rmdir(f'{overlay.upperdir}/etc')
             except OSError:
                 pass
-            if os.listdir(upper) == []:
+            if overlay.unchanged():
                 self.log(f"no changes found in squashfs {name!r}")
                 return
             with self.logged(f"repacking squashfs {name!r}"):
@@ -144,14 +166,16 @@ class EditContext:
         shutil.rmtree(self.dir)
 
     def mount_iso(self):
-        old = self.p('old/iso')
-        self.add_mount('iso9660', self.iso_path, old, options='loop,ro')
-        self.add_overlay(old, self.p('new/iso'), upper=self.p('upper/iso'))
+        self._iso_overlay = self.add_overlay(
+            self.add_mount(
+                'iso9660', self.iso_path, self.p('old/iso'),
+                options='loop,ro'),
+            self.p('new/iso'))
 
     def repack_iso(self, destpath):
         for hook in reversed(self._pre_repack_hooks):
             hook()
-        if os.listdir(self.p('upper/iso')) == []:
+        if self._iso_overlay.unchanged():
             self.log("no changes!")
             return
         cp = run(

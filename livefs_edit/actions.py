@@ -94,12 +94,8 @@ def setup_rootfs(ctxt, target='rootfs'):
     target = ctxt.p(target)
 
     squash_names = get_squash_names(ctxt)
-    lowers = []
-    for name in squash_names:
-        lowers.append(ctxt.mount_squash(name))
-    lower = ':'.join(reversed(lowers))
-    upper = ctxt.tmpdir()
-    ctxt.add_overlay(lower, target, upper=upper)
+    lowers = [ctxt.mount_squash(name) for name in squash_names]
+    overlay = ctxt.add_overlay(lowers, target)
     ctxt.add_sys_mounts(target)
 
     layerfs_path, layerfs_loc = get_layerfs_path(ctxt)
@@ -111,9 +107,9 @@ def setup_rootfs(ctxt, target='rootfs'):
     new_squash = ctxt.p(f'new/iso/casper/{new_squash_name}.squashfs')
 
     def _pre_repack():
-        if os.listdir(upper) == []:
+        if overlay.unchanged():
             return
-        run(['mksquashfs', upper, new_squash])
+        run(['mksquashfs', overlay.upperdir, new_squash])
         if layerfs_loc == LayerfsLoc.CMDLINE:
             add_cmdline_arg(
                 ctxt,
@@ -164,9 +160,8 @@ def install_debs(ctxt, debs: List[str] = ()):
 def inject_snap(ctxt, snap, channel="stable"):
     rootfs = setup_rootfs(ctxt)
     seed_dir = f'{rootfs}/var/lib/snapd/seed'
-    snap_mount = ctxt.tmpdir()
-    ctxt.add_mount('squashfs', snap, snap_mount)
-    with open(f'{snap_mount}/meta/snap.yaml') as fp:
+    snap_mount = ctxt.add_mount('squashfs', snap, ctxt.tmpdir())
+    with open(f'{snap_mount.mountpoint}/meta/snap.yaml') as fp:
         snap_meta = yaml.safe_load(fp)
 
     snap_name = snap_meta['name']
@@ -367,10 +362,10 @@ def add_packages_to_pool(ctxt, packages: List[str]):
     from apt import Cache
     from apt.progress.text import AcquireProgress
     fs = ctxt.mount_squash(get_squash_names(ctxt)[0])
-    overlay = ctxt.add_overlay(fs)
+    overlay = ctxt.add_overlay(fs, ctxt.tmpdir())
     for key in apt_pkg.config.list():
         apt_pkg.config.clear(key)
-    apt_pkg.config["Dir"] = overlay
+    apt_pkg.config["Dir"] = overlay.mountpoint
     apt_pkg.init_config()
     apt_pkg.config["APT::Architecture"] = ctxt.get_arch()
     apt_pkg.config["APT::Architectures"] = ctxt.get_arch()
@@ -437,13 +432,11 @@ def unpack_initrd(ctxt, target='new/initrd'):
     else:
         initrd_path = 'casper/initrd'
     run(['unmkinitramfs', ctxt.p(f'new/iso/{initrd_path}'), lower])
-    upper = ctxt.tmpdir()
-    ctxt.add_overlay(lower, target, upper=upper)
+    overlay = ctxt.add_overlay(lower, target)
 
     if 'early' in os.listdir(target):
         def _pre_repack_multi():
-            if os.listdir(upper) == []:
-                # Don't slowly repack initrd if no changes made to it.
+            if overlay.unchanged():
                 return
             with ctxt.logged(f'repacking initrd to {initrd_path} ...', 'done'):
                 with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
@@ -455,8 +448,7 @@ def unpack_initrd(ctxt, target='new/initrd'):
         ctxt.add_pre_repack_hook(_pre_repack_multi)
     else:
         def _pre_repack_single():
-            if os.listdir(upper) == []:
-                # Don't slowly repack initrd if no changes made to it.
+            if overlay.unchanged():
                 return
             with ctxt.logged('repacking initrd...', 'done'):
                 with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
