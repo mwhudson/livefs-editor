@@ -471,7 +471,7 @@ def unpack_initrd(ctxt, target='new/initrd'):
 @register_action()
 def add_apt_repository(ctxt, repo):
     base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
-    run(['chroot', base.p(), 'add-apt-repository', repo])
+    run(['chroot', base, 'add-apt-repository', '-y', repo])
 
 
 @register_action()
