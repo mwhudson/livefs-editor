@@ -457,3 +457,13 @@ def unpack_initrd(ctxt, target='new/initrd'):
         ctxt.add_pre_repack_hook(_pre_repack_single)
 
     return target
+
+
+@register_action()
+def install_packages(ctxt, packages: List[str]):
+    base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
+    run(['chroot', base, 'apt-get', 'update'])
+    env = os.environ.copy()
+    env['DEBIAN_FRONTEND'] = 'noninteractive'
+    env['LANG'] = 'C.UTF-8'
+    run(['chroot', base, 'apt-get', 'install', '-y'] + packages, env=env)
