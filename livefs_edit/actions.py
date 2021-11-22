@@ -1,4 +1,5 @@
 import enum
+import functools
 import glob
 import gzip
 import os
@@ -14,9 +15,28 @@ from . import run
 ACTIONS = {}
 
 
-def register_action(func):
-    ACTIONS[func.__name__.replace('_', '-')] = func
-    return func
+def cached(func):
+
+    key = func.__name__
+
+    @functools.wraps(func)
+    def impl(ctxt, **kw):
+        if key in ctxt._cache:
+            return ctxt._cache[key]
+        else:
+            r = ctxt._cache[key] = func(ctxt, **kw)
+            return r
+
+    return impl
+
+
+def register_action(*, cache=False):
+    def decorator(func):
+        if cache:
+            func = cached(func)
+        ACTIONS[func.__name__.replace('_', '-')] = func
+        return func
+    return decorator
 
 
 class LayerfsLoc(enum.Enum):
@@ -25,13 +45,11 @@ class LayerfsLoc(enum.Enum):
     INITRD = enum.auto()
 
 
+@cached
 def get_layerfs_path(ctxt):
-    if ctxt._layerfs_path != -1:
-        return ctxt._layerfs_path
     cmdline_val = get_cmdline_arg(ctxt, 'layerfs-path')
     if cmdline_val is not None:
-        ctxt._layerfs_path = cmdline_val, LayerfsLoc.CMDLINE
-        return ctxt._layerfs_path
+        return cmdline_val, LayerfsLoc.CMDLINE
     initrd_path = unpack_initrd(ctxt)
     if 'main' in os.listdir(initrd_path):
         initrd_path = initrd_path + '/main'
@@ -41,35 +59,31 @@ def get_layerfs_path(ctxt):
             for line in fp:
                 line = line.strip()
                 if line.startswith('LAYERFS_PATH='):
-                    ctxt._layerfs_path = (
-                        line[len('LAYERFS_PATH='):], LayerfsLoc.INITRD)
-                    return ctxt._layerfs_path
-    r = (None, LayerfsLoc.NONE)
-    ctxt._layerfs_path = r
-    return r
+                    return (
+                        line[len('LAYERFS_PATH='):],
+                        LayerfsLoc.INITRD,
+                        )
+    return None, LayerfsLoc.NONE
 
 
+@cached
 def get_squash_names(ctxt):
-    if ctxt._rootfs_squash_names is None:
-        layerfs_path = get_layerfs_path(ctxt)[0]
-        if layerfs_path:
-            parts = os.path.splitext(layerfs_path)[0].split('.')
-            basenames = []
-            for i in range(0, len(parts)):
-                basenames.append('.'.join(parts[:i+1]))
-        else:
-            basenames = []
-            for path in glob.glob(ctxt.p('old/iso/casper/*.squashfs')):
-                basenames.append(os.path.splitext(os.path.basename(path))[0])
-        ctxt._rootfs_squash_names = basenames
-    return ctxt._rootfs_squash_names
+    layerfs_path = get_layerfs_path(ctxt)[0]
+    if layerfs_path:
+        parts = os.path.splitext(layerfs_path)[0].split('.')
+        basenames = []
+        for i in range(0, len(parts)):
+            basenames.append('.'.join(parts[:i+1]))
+    else:
+        basenames = []
+        for path in glob.glob(ctxt.p('old/iso/casper/*.squashfs')):
+            basenames.append(os.path.splitext(os.path.basename(path))[0])
+    return basenames
 
 
-@register_action
+@register_action(cache=True)
 def setup_rootfs(ctxt, target='rootfs'):
-    if ctxt._rootfs_dir is not None:
-        return ctxt._rootfs_dir
-    ctxt._rootfs_dir = ctxt.p(target)
+    target = ctxt.p(target)
 
     squash_names = get_squash_names(ctxt)
     lowers = []
@@ -77,8 +91,8 @@ def setup_rootfs(ctxt, target='rootfs'):
         lowers.append(ctxt.mount_squash(name))
     lower = ':'.join(reversed(lowers))
     upper = ctxt.tmpdir()
-    ctxt.add_overlay(lower, ctxt._rootfs_dir, upper=upper)
-    ctxt.add_sys_mounts(ctxt._rootfs_dir)
+    ctxt.add_overlay(lower, target, upper=upper)
+    ctxt.add_sys_mounts(target)
 
     layerfs_path, layerfs_loc = get_layerfs_path(ctxt)
     last_squash = squash_names[-1]
@@ -108,10 +122,10 @@ def setup_rootfs(ctxt, target='rootfs'):
 
     ctxt.add_pre_repack_hook(_pre_repack)
 
-    return ctxt._rootfs_dir
+    return target
 
 
-@register_action
+@register_action()
 def shell(ctxt, command=None):
     cmd = ['bash']
     if command is not None:
@@ -119,12 +133,12 @@ def shell(ctxt, command=None):
     run(cmd, cwd=ctxt.p())
 
 
-@register_action
+@register_action()
 def cp(ctxt, source, dest):
     shutil.copy(ctxt.p(source), ctxt.p(dest))
 
 
-@register_action
+@register_action()
 def install_debs(ctxt, debs: List[str] = ()):
     rootfs = setup_rootfs(ctxt)
     for i, deb in enumerate(debs):
@@ -138,7 +152,7 @@ def install_debs(ctxt, debs: List[str] = ()):
         os.unlink(rootfs_path)
 
 
-@register_action
+@register_action()
 def inject_snap(ctxt, snap, channel="stable"):
     rootfs = setup_rootfs(ctxt)
     seed_dir = f'{rootfs}/var/lib/snapd/seed'
@@ -190,7 +204,7 @@ def inject_snap(ctxt, snap, channel="stable"):
     run(['/usr/lib/snapd/snap-preseed', rootfs])
 
 
-@register_action
+@register_action()
 def add_snap_from_store(ctxt, snap_name, channel="stable"):
     dldir = ctxt.tmpdir()
     run([
@@ -216,7 +230,7 @@ def cmdline_config_files(ctxt):
         yield p
 
 
-@register_action
+@register_action()
 def add_cmdline_arg(ctxt, arg, persist: bool = True):
     for path in cmdline_config_files(ctxt):
         print('rewriting', path)
@@ -244,12 +258,12 @@ def get_cmdline_arg(ctxt, key):
                             return word[len(key) + 1:]
 
 
-@register_action
+@register_action()
 def edit_squashfs(ctxt, squash_name, add_sys_mounts=True):
     ctxt.edit_squashfs(squash_name, add_sys_mounts=add_sys_mounts)
 
 
-@register_action
+@register_action()
 def add_autoinstall_config(ctxt, autoinstall_config):
     seed_dir = 'var/lib/cloud/seed/nocloud'
     CC_PREFIX = '#cloud-config\n'
@@ -270,7 +284,7 @@ def add_autoinstall_config(ctxt, autoinstall_config):
     add_cmdline_arg(ctxt, 'autoinstall', persist=False)
 
 
-@register_action
+@register_action()
 def add_debs_to_pool(ctxt, debs: List[str] = ()):
     gpgconf = ctxt.tmpfile()
     gpghome = ctxt.tmpdir()
@@ -338,7 +352,7 @@ Expire-Date: 0
         run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
 
 
-@register_action
+@register_action()
 def add_packages_to_pool(ctxt, packages: List[str]):
     import apt_pkg
     from apt import Cache
@@ -403,11 +417,9 @@ def pack_for_initrd(dir, compress, outfile):
     compress.communicate()
 
 
-@register_action
+@register_action(cache=True)
 def unpack_initrd(ctxt, target='new/initrd'):
-    if ctxt._initrd_dir is not None:
-        return ctxt._initrd_dir
-    ctxt._initrd_dir = ctxt.p(target)
+    target = ctxt.p(target)
     lower = ctxt.p('old/initrd')
     arch = ctxt.get_arch()
     if arch == 's390x':
@@ -416,19 +428,19 @@ def unpack_initrd(ctxt, target='new/initrd'):
         initrd_path = 'casper/initrd'
     run(['unmkinitramfs', ctxt.p(f'new/iso/{initrd_path}'), lower])
     upper = ctxt.tmpdir()
-    ctxt.add_overlay(lower, ctxt._initrd_dir, upper=upper)
+    ctxt.add_overlay(lower, target, upper=upper)
 
-    if 'early' in os.listdir(ctxt._initrd_dir):
+    if 'early' in os.listdir(target):
         def _pre_repack_multi():
             if os.listdir(upper) == []:
                 # Don't slowly repack initrd if no changes made to it.
                 return
             print('repacking initrd to', initrd_path, '...')
             with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
-                for dir in sorted(os.listdir(ctxt._initrd_dir)):
+                for dir in sorted(os.listdir(target)):
                     print("  packing", dir)
                     pack_for_initrd(
-                        f'{ctxt._initrd_dir}/{dir}', dir == "main", out)
+                        f'{target}/{dir}', dir == "main", out)
 
             print("  ... done")
 
@@ -440,9 +452,9 @@ def unpack_initrd(ctxt, target='new/initrd'):
                 return
             print('repacking initrd...')
             with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
-                pack_for_initrd(ctxt._initrd_dir, True, out)
+                pack_for_initrd(target, True, out)
             print("  ... done")
 
         ctxt.add_pre_repack_hook(_pre_repack_single)
 
-    return ctxt._initrd_dir
+    return target

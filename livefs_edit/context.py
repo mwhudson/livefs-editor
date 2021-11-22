@@ -13,10 +13,7 @@ class EditContext:
         self.iso_path = iso_path
         self.dir = tempfile.mkdtemp()
         os.mkdir(self.p('.tmp'))
-        self._initrd_dir = None
-        self._rootfs_dir = None
-        self._layerfs_path = -1
-        self._rootfs_squash_names = None
+        self._cache = {}
         self._pre_repack_hooks = []
         self._mounts = []
 
