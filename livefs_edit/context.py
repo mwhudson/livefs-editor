@@ -1,3 +1,4 @@
+import contextlib
 import os
 import shlex
 import shutil
@@ -14,8 +15,23 @@ class EditContext:
         self.dir = tempfile.mkdtemp()
         os.mkdir(self.p('.tmp'))
         self._cache = {}
+        self._indent = ''
         self._pre_repack_hooks = []
         self._mounts = []
+
+    def log(self, msg):
+        print(self._indent + msg)
+
+    @contextlib.contextmanager
+    def logged(self, msg, done_msg=None):
+        self.log(msg)
+        self._indent += '  '
+        try:
+            yield
+        finally:
+            self._indent = self._indent[:-2]
+        if done_msg is not None:
+            self.log(done_msg)
 
     def tmpdir(self):
         d = tempfile.mkdtemp(dir=self.p('.tmp'))
@@ -98,7 +114,7 @@ class EditContext:
         if os.path.exists(target):
             return target
         self.add_overlay(lower, target, upper=upper)
-        print("squashfs %r now mounted at %r" % (name, target))
+        self.log(f"squashfs {name!r} now mounted at {target!r}")
         new_squash = self.p(f'new/iso/casper/{name}.squashfs')
 
         def _pre_repack():
@@ -108,10 +124,10 @@ class EditContext:
             except OSError:
                 pass
             if os.listdir(upper) == []:
-                print("no changes found in squashfs %r" % (name,))
+                self.log(f"no changes found in squashfs {name!r}")
                 return
-            print("repacking squashfs %r" % (name,))
-            os.unlink(new_squash)
+            with self.logged(f"repacking squashfs {name!r}"):
+                os.unlink(new_squash)
             run(['mksquashfs', target, new_squash])
 
         self.add_pre_repack_hook(_pre_repack)
@@ -136,7 +152,7 @@ class EditContext:
         for hook in reversed(self._pre_repack_hooks):
             hook()
         if os.listdir(self.p('upper/iso')) == []:
-            print("no changes!")
+            self.log("no changes!")
             return
         cp = run(
             ['xorriso', '-indev', self.iso_path, '-report_el_torito',

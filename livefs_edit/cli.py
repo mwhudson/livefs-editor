@@ -35,7 +35,7 @@ def args_for_func(func, raw_args):
                 kw[p.name] = [a]
                 continue
             if p.name in kw:
-                raise ArgException("multiple values for %r" % (p.name,))
+                raise ArgException(f"multiple values for {p.name}")
             kw[p.name] = _conv(p.annotation, a)
     return kw
 
@@ -62,10 +62,11 @@ def parse(actions, raw_args):
     for a in raw_args:
         if a.startswith('--'):
             dispatch()
+            a = a[2:]
             try:
-                func = actions[a[2:]]
+                func = actions[a]
             except AttributeError:
-                raise ArgException("unknown action %r" % (a[2:]))
+                raise ArgException("unknown action {a!r}")
         elif func is None:
             1/0
         else:

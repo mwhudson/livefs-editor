@@ -32,10 +32,18 @@ def cached(func):
 
 def register_action(*, cache=False):
     def decorator(func):
+        name = func.__name__.replace('_', '-')
+
+        @functools.wraps(func)
+        def impl(ctxt, **kw):
+            with ctxt.logged(f"running {name} with arguments {kw}"):
+                return func(ctxt, **kw)
+
         if cache:
-            func = cached(func)
-        ACTIONS[func.__name__.replace('_', '-')] = func
-        return func
+            impl = cached(impl)
+
+        ACTIONS[func.__name__.replace('_', '-')] = impl
+        return impl
     return decorator
 
 
@@ -100,7 +108,7 @@ def setup_rootfs(ctxt, target='rootfs'):
         new_squash_name = last_squash + '.custom'
     else:
         new_squash_name = chr(ord(last_squash[0])+1) + last_squash[1:]
-    new_squash = ctxt.p('new/iso/casper/{}.squashfs'.format(new_squash_name))
+    new_squash = ctxt.p(f'new/iso/casper/{new_squash_name}.squashfs')
 
     def _pre_repack():
         if os.listdir(upper) == []:
@@ -109,7 +117,7 @@ def setup_rootfs(ctxt, target='rootfs'):
         if layerfs_loc == LayerfsLoc.CMDLINE:
             add_cmdline_arg(
                 ctxt,
-                f"layerfs-path={new_squash_name}.squashfs",
+                arg=f"layerfs-path={new_squash_name}.squashfs",
                 persist=False)
         elif layerfs_loc == LayerfsLoc.INITRD:
             initrd_path = unpack_initrd(ctxt)
@@ -214,7 +222,8 @@ def add_snap_from_store(ctxt, snap_name, channel="stable"):
         '--basename=dl',
         snap_name,
         ])
-    inject_snap(ctxt, os.path.join(dldir, 'dl.snap'), channel)
+    inject_snap(
+        ctxt, snap=os.path.join(dldir, 'dl.snap'), channel=channel)
 
 
 def cmdline_config_files(ctxt):
@@ -233,18 +242,18 @@ def cmdline_config_files(ctxt):
 @register_action()
 def add_cmdline_arg(ctxt, arg, persist: bool = True):
     for path in cmdline_config_files(ctxt):
-        print('rewriting', path)
-        with open(path) as fp:
-            inputlines = list(fp)
-        with open(path, 'w') as outfp:
-            for line in inputlines:
-                if '---' in line:
-                    if persist:
-                        line = line.rstrip() + ' ' + arg + '\n'
-                    else:
-                        before, after = line.split('---', 1)
-                        line = before.rstrip() + ' ' + arg + ' ---' + after
-                outfp.write(line)
+        with ctxt.logged(f'rewriting {path}'):
+            with open(path) as fp:
+                inputlines = list(fp)
+            with open(path, 'w') as outfp:
+                for line in inputlines:
+                    if '---' in line:
+                        if persist:
+                            line = line.rstrip() + ' ' + arg + '\n'
+                        else:
+                            before, after = line.split('---', 1)
+                            line = before.rstrip() + ' ' + arg + ' ---' + after
+                    outfp.write(line)
 
 
 def get_cmdline_arg(ctxt, key):
@@ -281,7 +290,7 @@ def add_autoinstall_config(ctxt, autoinstall_config):
     with open(os.path.join(rootfs, seed_dir, 'user-data'), 'w') as fp:
         fp.write(CC_PREFIX)
         yaml.dump(config, fp)
-    add_cmdline_arg(ctxt, 'autoinstall', persist=False)
+    add_cmdline_arg(ctxt, arg='autoinstall', persist=False)
 
 
 @register_action()
@@ -367,13 +376,14 @@ def add_packages_to_pool(ctxt, packages: List[str]):
     apt_pkg.config["APT::Architectures"] = ctxt.get_arch()
     apt_pkg.init_system()
     cache = Cache()
-    print('  ** updating apt lists... **')
-    cache.update(AcquireProgress())
-    print('  ** updating apt lists done **')
+    with ctxt.logged(
+            '** updating apt lists... **',
+            '** updating apt lists done **'):
+        cache.update(AcquireProgress())
     cache.open()
     for p in packages:
-        print('marking', p, 'for installation')
-        cache[p].mark_install()
+        with ctxt.logged(f'marking {p} for installation'):
+            cache[p].mark_install()
     tdir = ctxt.tmpdir()
     pool_debs = set()
     for dirpath, dirnames, filenames in os.walk(ctxt.p('new/iso/pool')):
@@ -385,7 +395,7 @@ def add_packages_to_pool(ctxt, packages: List[str]):
         fname = os.path.basename(p.candidate.filename)
         if fname not in pool_debs:
             debs.append(p.candidate.fetch_binary(tdir))
-    add_debs_to_pool(ctxt, debs)
+    add_debs_to_pool(ctxt, debs=debs)
 
 
 def add_to_pipeline(prev_proc, cmds, env=None, **kw):
@@ -435,14 +445,12 @@ def unpack_initrd(ctxt, target='new/initrd'):
             if os.listdir(upper) == []:
                 # Don't slowly repack initrd if no changes made to it.
                 return
-            print('repacking initrd to', initrd_path, '...')
-            with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
-                for dir in sorted(os.listdir(target)):
-                    print("  packing", dir)
-                    pack_for_initrd(
-                        f'{target}/{dir}', dir == "main", out)
-
-            print("  ... done")
+            with ctxt.logged(f'repacking initrd to {initrd_path} ...', 'done'):
+                with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
+                    for dir in sorted(os.listdir(target)):
+                        with ctxt.logged(f'packing {dir}'):
+                            pack_for_initrd(
+                                f'{target}/{dir}', dir == "main", out)
 
         ctxt.add_pre_repack_hook(_pre_repack_multi)
     else:
@@ -450,10 +458,9 @@ def unpack_initrd(ctxt, target='new/initrd'):
             if os.listdir(upper) == []:
                 # Don't slowly repack initrd if no changes made to it.
                 return
-            print('repacking initrd...')
-            with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
-                pack_for_initrd(target, True, out)
-            print("  ... done")
+            with ctxt.logged('repacking initrd...', 'done'):
+                with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
+                    pack_for_initrd(target, True, out)
 
         ctxt.add_pre_repack_hook(_pre_repack_single)
 

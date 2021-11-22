@@ -66,9 +66,6 @@ def main(argv):
 
     try:
         for func, kw in calls:
-            print(
-                "running", func.__name__.replace('_', '-'),
-                "with arguments", kw)
             func(ctxt, **kw)
 
         if destpath is not None:
