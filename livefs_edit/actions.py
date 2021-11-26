@@ -566,9 +566,11 @@ echo {meta_pkg} > /run/kernel-meta-package
     # Copy the uuid out of the new initrd.
     initrd_dir = ctxt.tmpdir()
     run(['unmkinitramfs', ctxt.p('new/iso/casper/initrd'), initrd_dir])
+    if 'main' in os.listdir(initrd_dir):
+        initrd_dir = initrd_dir + '/main'
     run([
         'mv',
-        f'{initrd_dir}/main/conf/uuid.conf',
+        f'{initrd_dir}/conf/uuid.conf',
         ctxt.p('new/iso/.disk/casper-uuid-custom'),
         ])
 
