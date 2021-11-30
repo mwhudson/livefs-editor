@@ -139,7 +139,7 @@ def shell(ctxt, command=None):
 
 @register_action()
 def cp(ctxt, source, dest):
-    shutil.copy(ctxt.p(source), ctxt.p(dest))
+    shutil.copy(ctxt.p(source, allow_abs=True), ctxt.p(dest, allow_abs=True))
 
 
 @register_action()
