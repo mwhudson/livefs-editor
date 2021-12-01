@@ -109,7 +109,8 @@ def setup_rootfs(ctxt, target='rootfs'):
     def _pre_repack():
         if overlay.unchanged():
             return
-        run(['mksquashfs', overlay.upperdir, new_squash])
+        with ctxt.logged(f'creating new squashfs {new_squash_name}'):
+            run(['mksquashfs', overlay.upperdir, new_squash])
         if layerfs_loc == LayerfsLoc.CMDLINE:
             add_cmdline_arg(
                 ctxt,
@@ -201,7 +202,10 @@ def inject_snap(ctxt, snap, channel="stable"):
     with open(f'{snap_mount.mountpoint}/meta/snap.yaml') as fp:
         snap_meta = yaml.safe_load(fp)
 
-    base = snap_meta.get('base', 'core')
+    if snap_meta.get('type') not in ['base', 'core']:
+        base = snap_meta.get('base', 'core')
+    else:
+        base = None
 
     snap_name = snap_meta['name']
 
@@ -223,7 +227,7 @@ def inject_snap(ctxt, snap, channel="stable"):
             snap_meta.get('confinement') == 'classic'))
 
     snap_names = {snap['name'] for snap in new_snaps}
-    if base not in snap_names:
+    if base is not None and base not in snap_names:
         new_snaps.append(
             add_snap_files(
                 base, download_snap(ctxt, base, 'stable'), seed_dir, 'stable'))
@@ -231,8 +235,15 @@ def inject_snap(ctxt, snap, channel="stable"):
     with open(f'{seed_dir}/seed.yaml', "w") as fp:
         yaml.dump({"snaps": new_snaps}, fp)
 
-    run(['/usr/lib/snapd/snap-preseed', '--reset', rootfs])
-    run(['/usr/lib/snapd/snap-preseed', rootfs])
+    def _preseed():
+        if '_preseed' in ctxt._cache:
+            return
+        with ctxt.logged('running snap-preseed...', '...preseed done'):
+            run(['/usr/lib/snapd/snap-preseed', '--reset', rootfs])
+            run(['/usr/lib/snapd/snap-preseed', rootfs])
+        ctxt._cache['_preseed'] = True
+
+    ctxt.add_pre_repack_hook(_preseed)
 
 
 @register_action()

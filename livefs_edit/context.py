@@ -173,8 +173,9 @@ class EditContext:
             self.p('new/iso'))
 
     def repack_iso(self, destpath):
-        for hook in reversed(self._pre_repack_hooks):
-            hook()
+        with self.logged("running repack hooks"):
+            for hook in reversed(self._pre_repack_hooks):
+                hook()
         if self._iso_overlay.unchanged():
             self.log("no changes!")
             return
@@ -183,5 +184,6 @@ class EditContext:
              'as_mkisofs'],
             encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         opts = shlex.split(cp.stdout)
-        run(['xorriso', '-as', 'mkisofs'] + opts +
-            ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')])
+        with self.logged("recreating ISO"):
+            run(['xorriso', '-as', 'mkisofs'] + opts +
+                ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')])
