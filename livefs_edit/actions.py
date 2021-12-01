@@ -156,6 +156,43 @@ def install_debs(ctxt, debs: List[str] = ()):
         os.unlink(rootfs_path)
 
 
+def rm_f(path):
+    if os.path.exists(path):
+        os.unlink(path)
+
+
+def download_snap(ctxt, snap_name, channel):
+    dldir = ctxt.tmpdir()
+    run([
+        'snap', 'download',
+        '--channel=' + channel,
+        '--target-directory=' + dldir,
+        '--basename=dl',
+        snap_name,
+        ])
+    return os.path.join(dldir, 'dl.snap')
+
+
+def add_snap_files(snap_name, snap_file, seed_dir, channel, classic=False):
+    basename = f'{snap_name}_injected'
+    info = {
+        'name': snap_name,
+        'file': f'{basename}.snap',
+        'channel': channel,
+        }
+    if classic:
+        info['classic'] = True
+    target_snap = f'{seed_dir}/snaps/{basename}.snap'
+    shutil.copy(snap_file, target_snap)
+    assert_file = os.path.splitext(snap_file)[0] + '.assert'
+    if os.path.exists(assert_file):
+        assert_target = f'{seed_dir}/assertions/{basename}.assert'
+        shutil.copy(assert_file, assert_target)
+    else:
+        info['unasserted'] = True
+    return info
+
+
 @register_action()
 def inject_snap(ctxt, snap, channel="stable"):
     rootfs = setup_rootfs(ctxt)
@@ -164,18 +201,9 @@ def inject_snap(ctxt, snap, channel="stable"):
     with open(f'{snap_mount.mountpoint}/meta/snap.yaml') as fp:
         snap_meta = yaml.safe_load(fp)
 
+    base = snap_meta.get('base', 'core')
+
     snap_name = snap_meta['name']
-
-    snap_file = f'{snap_name}_injected'
-
-    new_snap = {
-        "name": snap_name,
-        "file": snap_file + '.snap',
-        "channel": channel,
-        }
-
-    if snap_meta.get('confinement') == 'classic':
-        new_snap['classic'] = True
 
     new_snaps = []
 
@@ -183,22 +211,22 @@ def inject_snap(ctxt, snap, channel="stable"):
         old_seed = yaml.safe_load(fp)
     for old_snap in old_seed["snaps"]:
         if old_snap["name"] == snap_name:
-            old_base = os.path.splitext(old_snap['file'])[0]
-            old_snap_file = f'{seed_dir}/snaps/{old_base}.snap'
-            old_assertion = f'{seed_dir}/assertions/{old_base}.assert'
-            for p in old_snap_file, old_assertion:
-                if os.path.exists(p):
-                    os.unlink(p)
+            old_basename = os.path.splitext(old_snap['file'])[0]
+            rm_f(f'{seed_dir}/snaps/{old_basename}.snap')
+            rm_f(f'{seed_dir}/assertions/{old_basename}.assert')
         else:
             new_snaps.append(old_snap)
 
-    new_snaps.append(new_snap)
-    shutil.copy(snap, f'{seed_dir}/snaps/{snap_file}.snap')
-    assert_file = os.path.splitext(snap)[0] + '.assert'
-    if os.path.exists(assert_file):
-        shutil.copy(assert_file, f'{seed_dir}/assertions/{snap_file}.assert')
-    else:
-        new_snap["unasserted"] = True
+    new_snaps.append(
+        add_snap_files(
+            snap_name, snap, seed_dir, channel,
+            snap_meta.get('confinement') == 'classic'))
+
+    snap_names = {snap['name'] for snap in new_snaps}
+    if base not in snap_names:
+        new_snaps.append(
+            add_snap_files(
+                base, download_snap(ctxt, base, 'stable'), seed_dir, 'stable'))
 
     with open(f'{seed_dir}/seed.yaml', "w") as fp:
         yaml.dump({"snaps": new_snaps}, fp)
@@ -209,16 +237,8 @@ def inject_snap(ctxt, snap, channel="stable"):
 
 @register_action()
 def add_snap_from_store(ctxt, snap_name, channel="stable"):
-    dldir = ctxt.tmpdir()
-    run([
-        'snap', 'download',
-        '--channel=' + channel,
-        '--target-directory=' + dldir,
-        '--basename=dl',
-        snap_name,
-        ])
     inject_snap(
-        ctxt, snap=os.path.join(dldir, 'dl.snap'), channel=channel)
+        ctxt, snap=download_snap(ctxt, snap_name, channel), channel=channel)
 
 
 def cmdline_config_files(ctxt):
@@ -327,8 +347,7 @@ Expire-Date: 0
     with open(release) as o:
         old = deb822.Deb822(o)
     for p in release, release + '.gpg':
-        if os.path.exists(p):
-            os.unlink(p)
+        rm_f(p)
     cp = run(
         [
             'apt-ftparchive', '--md5=off', '--sha1=off', '--sha512=off',
