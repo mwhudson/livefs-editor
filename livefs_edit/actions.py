@@ -517,6 +517,7 @@ def add_apt_repository(ctxt, repo):
 @register_action()
 def replace_kernel(ctxt, flavor):
     meta_pkg = 'linux-' + flavor
+    layerfs_path = get_layerfs_path(ctxt)[0]
     squash_names = get_squash_names(ctxt)
     base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
 
@@ -528,33 +529,51 @@ def replace_kernel(ctxt, flavor):
             '** updating apt lists done **'):
         cache.update(AcquireProgress())
 
-    # Find layers below the one that adds the kernel.
-    below_kernel = [base]
-    for squash_name in squash_names[1:]:
-        squash_mount = ctxt.mount_squash(squash_name)
-        modules_dir = squash_mount.p('usr/lib/modules')
-        if os.path.exists(modules_dir):
-            if os.listdir(modules_dir) != []:
-                break
-        below_kernel.append(squash_mount)
+    if layerfs_path:
+        # Find layers below the one that adds the kernel.
+        below_kernel = [base]
+        for squash_name in squash_names[1:]:
+            squash_mount = ctxt.mount_squash(squash_name)
+            modules_dir = squash_mount.p('usr/lib/modules')
+            if os.path.exists(modules_dir):
+                if os.listdir(modules_dir) != []:
+                    break
+            below_kernel.append(squash_mount)
+        else:
+            raise Exception("cannot find layer that includes kernel")
     else:
-        raise Exception("cannot find layer that includes kernel")
+        below_kernel = [base] + [
+            ctxt.mount_squash(squash) for squash in squash_names[1:]
+            ]
 
-    # Create a new layer which will replace the one with the kernel.
+    # Create a new overlay to install kernel in.  In a layered ISO this will be
+    # a new layer, in an older one we pull the kernel, initrd, and modules out
+    # of it.
     new_kernel_layer = ctxt.add_overlay(below_kernel)
     ctxt.add_sys_mounts(new_kernel_layer.p())
 
     # Add the initramfs config for the new layer.
-    new_kernel_layer.write(
-        'etc/initramfs-tools/scripts/init-bottom/live-server',
-        f'''
+    script = f'''
 #!/bin/sh
 case $1 in
 prereqs) exit 0;;
 esac
 
 echo {meta_pkg} > /run/kernel-meta-package
-''')
+'''
+    if layerfs_path is None:
+        script += '''
+mkdir -p $rootmnt/usr/lib/modules
+mount $rootmnt/cdrom/casper/extras/modules.squashfs-custom \
+      $rootmnt/usr/lib/modules
+mkdir -p /run/systemd/system/usr-lib-modules.mount.d
+echo '[Mount]' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
+echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
+'''
+
+    new_kernel_layer.write(
+        'etc/initramfs-tools/scripts/init-bottom/live-server',
+        script)
     os.chmod(
         new_kernel_layer.p(
             'etc/initramfs-tools/scripts/init-bottom/live-server'),
@@ -562,9 +581,10 @@ echo {meta_pkg} > /run/kernel-meta-package
     new_kernel_layer.write(
         'etc/initramfs-tools/conf.d/casperize.conf',
         'export CASPER_GENERATE_UUID=1\n')
-    new_kernel_layer.write(
-        'etc/initramfs-tools/conf.d/default-layer.conf',
-        f'LAYERFS_PATH={squash_name}.squashfs\n')
+    if layerfs_path is not None:
+        new_kernel_layer.write(
+            'etc/initramfs-tools/conf.d/default-layer.conf',
+            f'LAYERFS_PATH={squash_name}.squashfs\n')
 
     # Add any missing packages to the pool.
     cache = cache_for_dir(ctxt, new_kernel_layer.p())
@@ -614,14 +634,21 @@ echo {meta_pkg} > /run/kernel-meta-package
         ctxt.p('new/iso/.disk/casper-uuid-custom'),
         ])
 
-    new_squash_name = ctxt.p(f'new/iso/casper/{squash_name}.squashfs')
+    if layerfs_path is not None:
+        new_squash_name = ctxt.p(f'new/iso/casper/{squash_name}.squashfs')
 
-    def _repack():
-        # Remove the changes to the apt config and status.
-        run(['rm', '-rf', f'{new_kernel_layer.upperdir}/var/lib/apt'])
-        run(['rm', '-rf', f'{new_kernel_layer.upperdir}/etc/apt'])
-        run(['rm', new_squash_name])
-        # Build the new squashfs!
-        run(['mksquashfs', new_kernel_layer.upperdir, new_squash_name])
+        def _repack():
+            # Remove the changes to the apt config and status.
+            run(['rm', '-rf', f'{new_kernel_layer.upperdir}/var/lib/apt'])
+            run(['rm', '-rf', f'{new_kernel_layer.upperdir}/etc/apt'])
+            run(['rm', new_squash_name])
+            # Build the new squashfs!
+            run(['mksquashfs', new_kernel_layer.upperdir, new_squash_name])
 
-    ctxt.add_pre_repack_hook(_repack)
+        ctxt.add_pre_repack_hook(_repack)
+    else:
+        run([
+            'mksquashfs',
+            new_kernel_layer.p('lib/modules'),
+            ctxt.p('new/iso/casper/extras/modules.squashfs-custom'),
+            ])
