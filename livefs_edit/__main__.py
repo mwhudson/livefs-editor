@@ -17,23 +17,15 @@ livefs-edit makes modifications to Ubuntu live ISOs.
 
 Actions include:
 
- * --setup-rootfs
- * --shell
- * --cp
- * --inject-snap
- * --edit-squashfs
- * --add-cmdline-arg
- * --add-autoinstall-config
- * --add-debs-to-pool
- * --add-packages-to-pool
- * --unpack-initrd
-
 """
 
 
 def main(argv):
     if '--help' in argv:
         print(HELP_TXT)
+        for action in sorted(ACTIONS.keys()):
+            print(f" * --{action.replace('_', '-')}")
+        print()
         sys.exit(0)
 
     isopath = argv[0]
