@@ -140,7 +140,7 @@ def shell(ctxt, command=None):
 
 @register_action()
 def cp(ctxt, source, dest):
-    shutil.copy(ctxt.p(source), ctxt.p(dest))
+    shutil.copy(ctxt.p(source, allow_abs=True), ctxt.p(dest, allow_abs=True))
 
 
 @register_action()
@@ -199,7 +199,7 @@ def inject_snap(ctxt, snap, channel="stable"):
     rootfs = setup_rootfs(ctxt)
     seed_dir = f'{rootfs}/var/lib/snapd/seed'
     snap_mount = ctxt.add_mount('squashfs', snap, ctxt.tmpdir())
-    with open(f'{snap_mount.mountpoint}/meta/snap.yaml') as fp:
+    with open(snap_mount.p('meta/snap.yaml')) as fp:
         snap_meta = yaml.safe_load(fp)
 
     if snap_meta.get('type') not in ['base', 'core']:
@@ -294,7 +294,7 @@ def get_cmdline_arg(ctxt, key):
 
 
 @register_action()
-def edit_squashfs(ctxt, squash_name, add_sys_mounts=True):
+def edit_squashfs(ctxt, squash_name, add_sys_mounts: bool = True):
     ctxt.edit_squashfs(squash_name, add_sys_mounts=add_sys_mounts)
 
 
@@ -386,29 +386,20 @@ Expire-Date: 0
         run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
 
 
-@register_action()
-def add_packages_to_pool(ctxt, packages: List[str]):
+def cache_for_dir(ctxt, dir):
     import apt_pkg
     from apt import Cache
-    from apt.progress.text import AcquireProgress
-    fs = ctxt.mount_squash(get_squash_names(ctxt)[0])
-    overlay = ctxt.add_overlay(fs, ctxt.tmpdir())
     for key in apt_pkg.config.list():
         apt_pkg.config.clear(key)
-    apt_pkg.config["Dir"] = overlay.mountpoint
+    apt_pkg.config["Dir"] = dir
     apt_pkg.init_config()
     apt_pkg.config["APT::Architecture"] = ctxt.get_arch()
     apt_pkg.config["APT::Architectures"] = ctxt.get_arch()
     apt_pkg.init_system()
-    cache = Cache()
-    with ctxt.logged(
-            '** updating apt lists... **',
-            '** updating apt lists done **'):
-        cache.update(AcquireProgress())
-    cache.open()
-    for p in packages:
-        with ctxt.logged(f'marking {p} for installation'):
-            cache[p].mark_install()
+    return Cache()
+
+
+def download_missing_pool_debs(ctxt, cache):
     tdir = ctxt.tmpdir()
     pool_debs = set()
     for dirpath, dirnames, filenames in os.walk(ctxt.p('new/iso/pool')):
@@ -420,6 +411,24 @@ def add_packages_to_pool(ctxt, packages: List[str]):
         fname = os.path.basename(p.candidate.filename)
         if fname not in pool_debs:
             debs.append(p.candidate.fetch_binary(tdir))
+    return debs
+
+
+@register_action()
+def add_packages_to_pool(ctxt, packages: List[str]):
+    from apt.progress.text import AcquireProgress
+    fs = ctxt.mount_squash(get_squash_names(ctxt)[0])
+    overlay = ctxt.add_overlay(fs, ctxt.tmpdir())
+    cache = cache_for_dir(ctxt, overlay.p())
+    with ctxt.logged(
+            '** updating apt lists... **',
+            '** updating apt lists done **'):
+        cache.update(AcquireProgress())
+    cache.open()
+    for p in packages:
+        with ctxt.logged(f'marking {p} for installation'):
+            cache[p].mark_install()
+    debs = download_missing_pool_debs(ctxt, cache)
     add_debs_to_pool(ctxt, debs=debs)
 
 
@@ -497,3 +506,122 @@ def install_packages(ctxt, packages: List[str]):
     env['DEBIAN_FRONTEND'] = 'noninteractive'
     env['LANG'] = 'C.UTF-8'
     run(['chroot', base, 'apt-get', 'install', '-y'] + packages, env=env)
+
+
+@register_action()
+def add_apt_repository(ctxt, repo):
+    base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
+    run(['chroot', base, 'add-apt-repository', '-y', repo])
+
+
+@register_action()
+def replace_kernel(ctxt, flavor):
+    meta_pkg = 'linux-' + flavor
+    squash_names = get_squash_names(ctxt)
+    base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
+
+    # Update apt lists in the base layer.
+    cache = cache_for_dir(ctxt, base)
+    from apt.progress.text import AcquireProgress
+    with ctxt.logged(
+            '** updating apt lists... **',
+            '** updating apt lists done **'):
+        cache.update(AcquireProgress())
+
+    # Find layers below the one that adds the kernel.
+    below_kernel = [base]
+    for squash_name in squash_names[1:]:
+        squash_mount = ctxt.mount_squash(squash_name)
+        modules_dir = squash_mount.p('usr/lib/modules')
+        if os.path.exists(modules_dir):
+            if os.listdir(modules_dir) != []:
+                break
+        below_kernel.append(squash_mount)
+    else:
+        raise Exception("cannot find layer that includes kernel")
+
+    # Create a new layer which will replace the one with the kernel.
+    new_kernel_layer = ctxt.add_overlay(below_kernel)
+    ctxt.add_sys_mounts(new_kernel_layer.p())
+
+    # Add the initramfs config for the new layer.
+    new_kernel_layer.write(
+        'etc/initramfs-tools/scripts/init-bottom/live-server',
+        f'''
+#!/bin/sh
+case $1 in
+prereqs) exit 0;;
+esac
+
+echo {meta_pkg} > /run/kernel-meta-package
+''')
+    os.chmod(
+        new_kernel_layer.p(
+            'etc/initramfs-tools/scripts/init-bottom/live-server'),
+        0o755)
+    new_kernel_layer.write(
+        'etc/initramfs-tools/conf.d/casperize.conf',
+        'export CASPER_GENERATE_UUID=1\n')
+    new_kernel_layer.write(
+        'etc/initramfs-tools/conf.d/default-layer.conf',
+        f'LAYERFS_PATH={squash_name}.squashfs\n')
+
+    # Add any missing packages to the pool.
+    cache = cache_for_dir(ctxt, new_kernel_layer.p())
+    cache[meta_pkg].mark_install()
+    debs = download_missing_pool_debs(ctxt, cache)
+    add_debs_to_pool(ctxt, debs=debs)
+
+    # Set up new layer to get packages from pool (the changes to the
+    # apt config and status will just be deleted from the layer later)
+    ctxt.add_mount(
+        None, ctxt.p('new/iso'), new_kernel_layer.p('mnt'), options='bind')
+    os_release = new_kernel_layer.p('etc/os-release')
+    codename = run(
+        ['bash', '-c', f'source {os_release}; echo $VERSION_CODENAME'],
+        stdout=subprocess.PIPE, encoding='utf-8').stdout.strip()
+    new_kernel_layer.write(
+        'etc/apt/sources.list',
+        f'deb [check-date=no] file:///mnt {codename} main restricted\n',
+        )
+    run(['chroot', new_kernel_layer.p(), 'apt-get', 'update'])
+
+    # Install the new kernel.
+    env = os.environ.copy()
+    env['DEBIAN_FRONTEND'] = 'noninteractive'
+    env['LANG'] = 'C.UTF-8'
+    run(
+        ['chroot', new_kernel_layer.p(), 'apt-get', 'install', '-y', meta_pkg],
+        env=env)
+
+    # Fish the kernel and initrd out and put them in the right place
+    # on the ISO.
+    [kernel] = glob.glob(new_kernel_layer.p('boot/vmlinu?-*'))
+    [initrd] = glob.glob(new_kernel_layer.p('boot/initrd.img-*'))
+    run([
+        'mv', kernel,
+        ctxt.p('new/iso/casper/' + os.path.basename(kernel)[:7])])
+    run(['mv', initrd, ctxt.p('new/iso/casper/initrd')])
+
+    # Copy the uuid out of the new initrd.
+    initrd_dir = ctxt.tmpdir()
+    run(['unmkinitramfs', ctxt.p('new/iso/casper/initrd'), initrd_dir])
+    if 'main' in os.listdir(initrd_dir):
+        initrd_dir = initrd_dir + '/main'
+    run([
+        'mv',
+        f'{initrd_dir}/conf/uuid.conf',
+        ctxt.p('new/iso/.disk/casper-uuid-custom'),
+        ])
+
+    new_squash_name = ctxt.p(f'new/iso/casper/{squash_name}.squashfs')
+
+    def _repack():
+        # Remove the changes to the apt config and status.
+        run(['rm', '-rf', f'{new_kernel_layer.upperdir}/var/lib/apt'])
+        run(['rm', '-rf', f'{new_kernel_layer.upperdir}/etc/apt'])
+        run(['rm', new_squash_name])
+        # Build the new squashfs!
+        run(['mksquashfs', new_kernel_layer.upperdir, new_squash_name])
+
+    ctxt.add_pre_repack_hook(_repack)

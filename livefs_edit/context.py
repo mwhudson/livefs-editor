@@ -8,13 +8,26 @@ import tempfile
 from . import run
 
 
-class Mountpoint:
+class _MountBase:
+
+    def p(self, *args):
+        for a in args:
+            if a.startswith('/'):
+                raise Exception('no absolute paths here please')
+        return os.path.join(self.mountpoint, *args)
+
+    def write(self, path, content):
+        with open(self.p(path), 'w') as fp:
+            fp.write(content)
+
+
+class Mountpoint(_MountBase):
     def __init__(self, *, device, mountpoint):
         self.device = device
         self.mountpoint = mountpoint
 
 
-class OverlayMountpoint:
+class OverlayMountpoint(_MountBase):
     def __init__(self, *, lowers, upperdir, mountpoint):
         self.lowers = lowers
         self.upperdir = upperdir
@@ -59,13 +72,22 @@ class EditContext:
     def tmpfile(self):
         return tempfile.mktemp(dir=self.p('.tmp'))
 
-    def p(self, *args):
+    def p(self, *args, allow_abs=False):
+        if not allow_abs:
+            for a in args:
+                if a.startswith('/'):
+                    raise Exception('no absolute paths here please')
         return os.path.join(self.dir, *args)
 
     def add_mount(self, typ, src, mountpoint, *, options=None):
-        cmd = ['mount', '-t', typ, src]
+        cmd = ['mount']
+        if typ is not None:
+            cmd.extend(['-t', typ])
+        cmd.append(src)
         if options:
             cmd.extend(['-o', options])
+        if mountpoint is None:
+            mountpoint = self.tmpdir()
         cmd.append(mountpoint)
         if not os.path.isdir(mountpoint):
             os.makedirs(mountpoint)
@@ -93,7 +115,7 @@ class EditContext:
 
         def _pre_repack():
             for mnt in reversed(mnts):
-                self.umount(mnt.mountpoint)
+                self.umount(mnt.p())
             os.rename(resolv_conf + '.tmp', resolv_conf)
 
         self.add_pre_repack_hook(_pre_repack)
@@ -103,13 +125,24 @@ class EditContext:
             lowers = [lowers]
         upperdir = self.tmpdir()
         workdir = self.tmpdir()
-        lowerdir = ':'.join(reversed([
-            getattr(lower, 'mountpoint', lower) for lower in lowers]))
+
+        def lowerdir_for(lower):
+            if isinstance(lower, str):
+                return lower
+            if isinstance(lower, Mountpoint):
+                return lower.p()
+            if isinstance(lower, OverlayMountpoint):
+                return lowerdir_for(lower.lowers)
+            if isinstance(lower, list):
+                return ':'.join(reversed([lowerdir_for(ll) for ll in lower]))
+            raise Exception(f'lowerdir_for({lower!r})')
+
+        lowerdir = lowerdir_for(lowers)
         options = f'lowerdir={lowerdir},upperdir={upperdir},workdir={workdir}'
         return OverlayMountpoint(
             lowers=lowers,
             mountpoint=self.add_mount(
-                'overlay', 'overlay', mountpoint, options=options).mountpoint,
+                'overlay', 'overlay', mountpoint, options=options).p(),
             upperdir=upperdir)
 
     def add_pre_repack_hook(self, hook):
