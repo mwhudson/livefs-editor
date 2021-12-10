@@ -1,3 +1,4 @@
+import code
 import enum
 import functools
 import glob
@@ -652,3 +653,13 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
             new_kernel_layer.p('lib/modules'),
             ctxt.p('new/iso/casper/extras/modules.squashfs-custom'),
             ])
+
+
+@register_action()
+def python(ctxt, cmd=None):
+    ns = globals().copy()
+    ns['ctxt'] = ctxt
+    if cmd:
+        exec(cmd, ns, ns)
+    else:
+        code.interact(local=ns)
