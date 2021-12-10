@@ -132,7 +132,7 @@ class EditContext:
             if isinstance(lower, Mountpoint):
                 return lower.p()
             if isinstance(lower, OverlayMountpoint):
-                return lowerdir_for(lower.lowers)
+                return lowerdir_for(lower.lowers + [lower.upperdir])
             if isinstance(lower, list):
                 return ':'.join(reversed([lowerdir_for(ll) for ll in lower]))
             raise Exception(f'lowerdir_for({lower!r})')
