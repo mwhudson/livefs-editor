@@ -10,13 +10,12 @@ from livefs_edit.context import EditContext
 from livefs_edit.actions import ACTIONS
 
 
-HELP_TXT = """
-# livefs-edit source.iso dest.sio [actions]
+HELP_TXT = """\
+# livefs-edit source.iso dest.iso [actions]
 
 livefs-edit makes modifications to Ubuntu live ISOs.
 
 Actions include:
-
 """
 
 

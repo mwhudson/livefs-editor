@@ -220,3 +220,36 @@ Unpack the initrd using unmkinitramfs into `target` (contents will
 likely end up in subdirectories called things like `early`, `early2`
 and `main`, at least on amd64) and arrange for these to be repacked
 into a replacement initrd for the modified ISO if any changes are made.
+
+### add-apt-repository
+
+**argument**: `repo`
+
+Run `add-apt-repository <repo>` in the base layer.
+
+### install-debs
+
+**argument**: list of deb files
+
+Install the listed deb files in the installer environment.
+
+### install-packages
+
+**argument**: list of deb files
+
+Install the listed packages in the base layer.
+
+### python
+
+**argument**: <cmd> (optional)
+
+Execute `<cmd>` in a namespace that contains the context object as
+`ctxt` or start an interactive shell if `<cmd>` is not passed.
+
+### replace-kernel
+
+**argument**: <flavor>
+
+Modify the ISO so the kernel installed via the metapackage
+`linux-<flavor>` will be used to boot the ISO and be installed in the
+target system.
