@@ -47,6 +47,7 @@ class EditContext:
         self._cache = {}
         self._indent = ''
         self._pre_repack_hooks = []
+        self._loops = []
         self._mounts = []
         self._squash_mounts = {}
 
@@ -78,6 +79,14 @@ class EditContext:
                 if a.startswith('/'):
                     raise Exception('no absolute paths here please')
         return os.path.join(self.dir, *args)
+
+    def add_loop(self, file):
+        cp = run_capture(['losetup', '--show', '--find', '--partscan', file])
+        dev = cp.stdout.strip()
+        self._loops.append(dev)
+        run(['udevadm', 'settle'])
+        self.log(f'set up loop device {dev} backing {file}')
+        return dev
 
     def add_mount(self, typ, src, mountpoint, *, options=None):
         cmd = ['mount']
@@ -197,13 +206,15 @@ class EditContext:
             run(['mount', '--make-rprivate', mount])
             run(['umount', '-R', mount])
         shutil.rmtree(self.dir)
+        for loop in reversed(self._loops):
+            run(['losetup', '--detach', loop])
 
     def mount_source(self):
+        source_loop = self.add_loop(self.source_path)
+        source_mount = self.add_mount(
+            None, source_loop, self.p('old/iso'), options='ro')
         self._source_overlay = self.add_overlay(
-            self.add_mount(
-                None, self.source_path, self.p('old/iso'),
-                options='loop,ro'),
-            self.p('new/iso'))
+            source_mount, self.p('new/iso'))
 
     def repack(self, destpath):
         with self.logged("running repack hooks"):
