@@ -19,7 +19,9 @@ Actions include:
 """
 
 
-def main(argv):
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
     if '--help' in argv:
         print(HELP_TXT)
         for action in sorted(ACTIONS.keys()):
