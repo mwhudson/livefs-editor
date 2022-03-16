@@ -260,4 +260,12 @@ class EditContext:
                 ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')])
 
     def repack_generic(self, destpath):
-        1/0
+        with self.logged(f"copying {self.source_path} to {destpath}"):
+            run(['cp', self.source_path, destpath])
+        destloop = self.add_loop(destpath)
+        dest_dev = self.find_livefs(destloop)
+        dest_mount = self.add_mount(None, dest_dev, None)
+        with self.logged("copying live filesystem"):
+            run(
+                ['rsync', '-axXvHAS', self.p('new/iso/'), '.'],
+                cwd=dest_mount.p())
