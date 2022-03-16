@@ -38,7 +38,6 @@ def main(argv):
         inplace = True
 
     ctxt = EditContext(sourcepath)
-    ctxt.mount_source()
 
     if argv[2] == '--action-yaml':
         calls = []
@@ -56,6 +55,8 @@ def main(argv):
             sys.exit(1)
 
     try:
+        ctxt.mount_source()
+
         for func, kw in calls:
             func(ctxt, **kw)
 
