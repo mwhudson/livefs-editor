@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import tempfile
 
-from . import run
+from . import run, run_capture
 
 
 class _MountBase:
@@ -215,10 +215,11 @@ class EditContext:
         self.repack_iso(destpath)
 
     def repack_iso(self, destpath):
-        cp = run(
-            ['xorriso', '-indev', self.source_path, '-report_el_torito',
-             'as_mkisofs'],
-            encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        cp = run_capture([
+            'xorriso',
+            '-indev', self.source_path,
+            '-report_el_torito', 'as_mkisofs',
+            ])
         opts = shlex.split(cp.stdout)
         with self.logged("recreating ISO"):
             run(['xorriso', '-as', 'mkisofs'] + opts +
