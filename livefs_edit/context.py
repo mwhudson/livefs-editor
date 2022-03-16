@@ -39,9 +39,9 @@ class OverlayMountpoint(_MountBase):
 
 class EditContext:
 
-    def __init__(self, iso_path):
-        self.iso_path = iso_path
-        self._iso_overlay = None
+    def __init__(self, source_path):
+        self.source_path = source_path
+        self._source_overlay = None
         self.dir = tempfile.mkdtemp()
         os.mkdir(self.p('.tmp'))
         self._cache = {}
@@ -198,22 +198,25 @@ class EditContext:
             run(['umount', '-R', mount])
         shutil.rmtree(self.dir)
 
-    def mount_iso(self):
-        self._iso_overlay = self.add_overlay(
+    def mount_source(self):
+        self._source_overlay = self.add_overlay(
             self.add_mount(
-                'iso9660', self.iso_path, self.p('old/iso'),
+                None, self.source_path, self.p('old/iso'),
                 options='loop,ro'),
             self.p('new/iso'))
 
-    def repack_iso(self, destpath):
+    def repack(self, destpath):
         with self.logged("running repack hooks"):
             for hook in reversed(self._pre_repack_hooks):
                 hook()
-        if self._iso_overlay.unchanged():
+        if self._source_overlay.unchanged():
             self.log("no changes!")
             return
+        self.repack_iso(destpath)
+
+    def repack_iso(self, destpath):
         cp = run(
-            ['xorriso', '-indev', self.iso_path, '-report_el_torito',
+            ['xorriso', '-indev', self.source_path, '-report_el_torito',
              'as_mkisofs'],
             encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         opts = shlex.split(cp.stdout)
