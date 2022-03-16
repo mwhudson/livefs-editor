@@ -1,4 +1,5 @@
 import contextlib
+import glob
 import os
 import shlex
 import shutil
@@ -100,7 +101,7 @@ class EditContext:
         cmd.append(mountpoint)
         if not os.path.isdir(mountpoint):
             os.makedirs(mountpoint)
-        run(cmd)
+        run_capture(cmd)
         self._mounts.append(mountpoint)
         return Mountpoint(device=src, mountpoint=mountpoint)
 
@@ -209,10 +210,29 @@ class EditContext:
         for loop in reversed(self._loops):
             run(['losetup', '--detach', loop])
 
+    def find_livefs(self, device):
+        for dev in glob.glob(f'{device}*'):
+            try:
+                try_mount = self.add_mount(None, dev, None, options='ro')
+            except subprocess.CalledProcessError:
+                continue
+            try:
+                if glob.glob(try_mount.p('casper/*.squashfs')):
+                    return dev
+            finally:
+                self.umount(try_mount.p())
+        else:
+            raise Exception("could not find live filesystem")
+
     def mount_source(self):
         source_loop = self.add_loop(self.source_path)
+        live_dev = self.find_livefs(source_loop)
         source_mount = self.add_mount(
-            None, source_loop, self.p('old/iso'), options='ro')
+            None, live_dev, self.p('old/iso'), options='ro')
+        cp = run_capture(['findmnt', '-no', 'fstype', source_mount.p()])
+        self.source_fstype = cp.stdout.strip()
+        self.log(
+            f'found live {self.source_fstype} filesystem on {live_dev}')
         self._source_overlay = self.add_overlay(
             source_mount, self.p('new/iso'))
 
@@ -223,7 +243,10 @@ class EditContext:
         if self._source_overlay.unchanged():
             self.log("no changes!")
             return
-        self.repack_iso(destpath)
+        if self.source_fstype == 'iso9660':
+            self.repack_iso(destpath)
+        else:
+            self.repack_generic(destpath)
 
     def repack_iso(self, destpath):
         cp = run_capture([
@@ -235,3 +258,6 @@ class EditContext:
         with self.logged("recreating ISO"):
             run(['xorriso', '-as', 'mkisofs'] + opts +
                 ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')])
+
+    def repack_generic(self, destpath):
+        1/0
