@@ -10,7 +10,7 @@ import subprocess
 from typing import List
 import yaml
 
-from . import run
+from . import run, run_capture
 
 
 ACTIONS = {}
@@ -236,7 +236,7 @@ def inject_snap(ctxt, snap, channel="stable"):
     with open(f'{seed_dir}/seed.yaml', "w") as fp:
         yaml.dump({"snaps": new_snaps}, fp)
 
-    def _preseed():
+    def _preseed_native():
         if '_preseed' in ctxt._cache:
             return
         with ctxt.logged('running snap-preseed...', '...preseed done'):
@@ -244,7 +244,19 @@ def inject_snap(ctxt, snap, channel="stable"):
             run(['/usr/lib/snapd/snap-preseed', rootfs])
         ctxt._cache['_preseed'] = True
 
-    ctxt.add_pre_repack_hook(_preseed)
+    def _preseed_cross():
+        if '_preseed' in ctxt._cache:
+            return
+        with ctxt.logged('running snap-preseed --reset...', '...done'):
+            run(['/usr/lib/snapd/snap-preseed', '--reset', rootfs])
+        ctxt._cache['_preseed'] = True
+
+    host_arch = run_capture(['dpkg', '--print-architecture']).stdout.strip()
+
+    if ctxt.get_arch() == host_arch:
+        ctxt.add_pre_repack_hook(_preseed_native)
+    else:
+        ctxt.add_pre_repack_hook(_preseed_cross)
 
 
 @register_action()
