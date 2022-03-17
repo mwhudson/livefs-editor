@@ -241,14 +241,14 @@ Install the listed packages in the base layer.
 
 ### python
 
-**argument**: <cmd> (optional)
+**argument**: `<cmd>` (optional)
 
 Execute `<cmd>` in a namespace that contains the context object as
 `ctxt` or start an interactive shell if `<cmd>` is not passed.
 
 ### replace-kernel
 
-**argument**: <flavor>
+**argument**: `<flavor>`
 
 Modify the ISO so the kernel installed via the metapackage
 `linux-<flavor>` will be used to boot the ISO and be installed in the
