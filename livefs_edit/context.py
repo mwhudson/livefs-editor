@@ -1,11 +1,12 @@
 import contextlib
+import glob
 import os
 import shlex
 import shutil
 import subprocess
 import tempfile
 
-from . import run
+from . import run, run_capture
 
 
 class _MountBase:
@@ -39,14 +40,15 @@ class OverlayMountpoint(_MountBase):
 
 class EditContext:
 
-    def __init__(self, iso_path):
-        self.iso_path = iso_path
-        self._iso_overlay = None
+    def __init__(self, source_path):
+        self.source_path = source_path
+        self._source_overlay = None
         self.dir = tempfile.mkdtemp()
         os.mkdir(self.p('.tmp'))
         self._cache = {}
         self._indent = ''
         self._pre_repack_hooks = []
+        self._loops = []
         self._mounts = []
         self._squash_mounts = {}
 
@@ -79,6 +81,14 @@ class EditContext:
                     raise Exception('no absolute paths here please')
         return os.path.join(self.dir, *args)
 
+    def add_loop(self, file):
+        cp = run_capture(['losetup', '--show', '--find', '--partscan', file])
+        dev = cp.stdout.strip()
+        self._loops.append(dev)
+        run(['udevadm', 'settle'])
+        self.log(f'set up loop device {dev} backing {file}')
+        return dev
+
     def add_mount(self, typ, src, mountpoint, *, options=None):
         cmd = ['mount']
         if typ is not None:
@@ -91,7 +101,7 @@ class EditContext:
         cmd.append(mountpoint)
         if not os.path.isdir(mountpoint):
             os.makedirs(mountpoint)
-        run(cmd)
+        run_capture(cmd)
         self._mounts.append(mountpoint)
         return Mountpoint(device=src, mountpoint=mountpoint)
 
@@ -197,26 +207,65 @@ class EditContext:
             run(['mount', '--make-rprivate', mount])
             run(['umount', '-R', mount])
         shutil.rmtree(self.dir)
+        for loop in reversed(self._loops):
+            run(['losetup', '--detach', loop])
 
-    def mount_iso(self):
-        self._iso_overlay = self.add_overlay(
-            self.add_mount(
-                'iso9660', self.iso_path, self.p('old/iso'),
-                options='loop,ro'),
-            self.p('new/iso'))
+    def find_livefs(self, device):
+        for dev in glob.glob(f'{device}*'):
+            try:
+                try_mount = self.add_mount(None, dev, None, options='ro')
+            except subprocess.CalledProcessError:
+                continue
+            try:
+                if glob.glob(try_mount.p('casper/*.squashfs')):
+                    return dev
+            finally:
+                self.umount(try_mount.p())
+        else:
+            raise Exception("could not find live filesystem")
 
-    def repack_iso(self, destpath):
+    def mount_source(self):
+        source_loop = self.add_loop(self.source_path)
+        live_dev = self.find_livefs(source_loop)
+        source_mount = self.add_mount(
+            None, live_dev, self.p('old/iso'), options='ro')
+        cp = run_capture(['findmnt', '-no', 'fstype', source_mount.p()])
+        self.source_fstype = cp.stdout.strip()
+        self.log(
+            f'found live {self.source_fstype} filesystem on {live_dev}')
+        self._source_overlay = self.add_overlay(
+            source_mount, self.p('new/iso'))
+
+    def repack(self, destpath):
         with self.logged("running repack hooks"):
             for hook in reversed(self._pre_repack_hooks):
                 hook()
-        if self._iso_overlay.unchanged():
+        if self._source_overlay.unchanged():
             self.log("no changes!")
             return
-        cp = run(
-            ['xorriso', '-indev', self.iso_path, '-report_el_torito',
-             'as_mkisofs'],
-            encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if self.source_fstype == 'iso9660':
+            self.repack_iso(destpath)
+        else:
+            self.repack_generic(destpath)
+
+    def repack_iso(self, destpath):
+        cp = run_capture([
+            'xorriso',
+            '-indev', self.source_path,
+            '-report_el_torito', 'as_mkisofs',
+            ])
         opts = shlex.split(cp.stdout)
         with self.logged("recreating ISO"):
             run(['xorriso', '-as', 'mkisofs'] + opts +
                 ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')])
+
+    def repack_generic(self, destpath):
+        with self.logged(f"copying {self.source_path} to {destpath}"):
+            run(['cp', self.source_path, destpath])
+        destloop = self.add_loop(destpath)
+        dest_dev = self.find_livefs(destloop)
+        dest_mount = self.add_mount(None, dest_dev, None)
+        with self.logged("copying live filesystem"):
+            run(
+                ['rsync', '-axXvHAS', self.p('new/iso/'), '.'],
+                cwd=dest_mount.p())

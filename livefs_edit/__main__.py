@@ -11,9 +11,9 @@ from livefs_edit.actions import ACTIONS
 
 
 HELP_TXT = """\
-# livefs-edit source.iso dest.iso [actions]
+# livefs-edit source.{iso,img} dest.{iso,img} [actions]
 
-livefs-edit makes modifications to Ubuntu live ISOs.
+livefs-edit makes modifications to Ubuntu live ISOs and images.
 
 Actions include:
 """
@@ -29,18 +29,17 @@ def main(argv=None):
         print()
         sys.exit(0)
 
-    isopath = argv[0]
+    sourcepath = argv[0]
     destpath = argv[1]
 
     inplace = False
     if destpath == '/dev/null':
         destpath = None
-    elif destpath == isopath:
+    elif destpath == sourcepath:
         destpath = destpath + '.new'
         inplace = True
 
-    ctxt = EditContext(isopath)
-    ctxt.mount_iso()
+    ctxt = EditContext(sourcepath)
 
     if argv[2] == '--action-yaml':
         calls = []
@@ -58,13 +57,15 @@ def main(argv=None):
             sys.exit(1)
 
     try:
+        ctxt.mount_source()
+
         for func, kw in calls:
             func(ctxt, **kw)
 
         if destpath is not None:
-            ctxt.repack_iso(destpath)
+            ctxt.repack(destpath)
             if inplace:
-                os.rename(destpath, isopath)
+                os.rename(destpath, sourcepath)
     finally:
         ctxt.teardown()
 
