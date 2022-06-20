@@ -147,7 +147,7 @@ unasserted.
 
 **argument**: `channel` (default: `"stable"`)
 
-A wrapper around `--inject-snap`` that downloads the specified snap
+A wrapper around `--inject-snap` that downloads the specified snap
 from the store first.
 
 ### edit-squashfs
