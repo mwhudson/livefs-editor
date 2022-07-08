@@ -63,8 +63,8 @@ def main(argv=None):
             func(ctxt, **kw)
 
         if destpath is not None:
-            ctxt.repack(destpath)
-            if inplace:
+            changed = ctxt.repack(destpath)
+            if changed and inplace:
                 os.rename(destpath, sourcepath)
     finally:
         ctxt.teardown()

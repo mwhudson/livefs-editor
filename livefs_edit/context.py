@@ -242,11 +242,12 @@ class EditContext:
                 hook()
         if self._source_overlay.unchanged():
             self.log("no changes!")
-            return
+            return False
         if self.source_fstype == 'iso9660':
             self.repack_iso(destpath)
         else:
             self.repack_generic(destpath)
+        return True
 
     def repack_iso(self, destpath):
         cp = run_capture([
