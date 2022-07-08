@@ -217,7 +217,7 @@ class EditContext:
             except subprocess.CalledProcessError:
                 continue
             try:
-                if glob.glob(try_mount.p('casper/*.squashfs')):
+                if os.path.exists(try_mount.p('.disk/info')):
                     return dev
             finally:
                 self.umount(try_mount.p())
