@@ -152,11 +152,11 @@ from the store first.
 
 ### edit-squashfs
 
-**argument**: `name`
+**argument**: `squash_name`
 
 **argument**: `add_sys_mounts` (default: `true`)
 
-Mount the squashfs named `name` at `new/{name}` and arrange for it be
+Mount the squashfs named `squash_name` at `new/{name}` and arrange for it be
 repacked if there are any changes before the new ISO is made.
 
 `add_sys_mounts` controls whether the usual chroot setup stuff is done
