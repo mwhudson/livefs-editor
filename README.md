@@ -204,7 +204,7 @@ you want the option of using the ISO as an apt repository later on.
 
 ### add-packages-to-pool
 
-**argument**: list of package names
+**argument**: `packages` (list of package names)
 
 This is a wrapper around `add-debs-to-pool` which takes package names
 rather than deb files. It downloads the listed packages and any others
@@ -235,7 +235,7 @@ Install the listed deb files in the installer environment.
 
 ### install-packages
 
-**argument**: list of deb files
+**argument**: `packages` (list of deb files)
 
 Install the listed packages in the base layer.
 
