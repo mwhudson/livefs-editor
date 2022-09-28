@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 
 import os
+import subprocess
 import sys
+import traceback
 
 import yaml
 
@@ -66,6 +68,13 @@ def main(argv=None):
             changed = ctxt.repack(destpath)
             if changed and inplace:
                 os.rename(destpath, sourcepath)
+    except subprocess.CalledProcessError as cp:
+        traceback.print_exc()
+        if cp.stdout:
+            print("\nStdout:\n\n"+cp.stdout)
+        if cp.stderr:
+            print("\nStderr:\n\n"+cp.stderr)
+        sys.exit(1)
     finally:
         ctxt.teardown()
 
