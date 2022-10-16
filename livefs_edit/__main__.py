@@ -46,7 +46,7 @@ def main(argv=None):
     if argv[2] == '--action-yaml':
         calls = []
         with open(argv[3]) as fp:
-            spec = yaml.load(fp)
+            spec = yaml.safe_load(fp)
         print(spec)
         for action in spec:
             func = ACTIONS[action.pop('name')]
