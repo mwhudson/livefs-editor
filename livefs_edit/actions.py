@@ -321,7 +321,7 @@ def add_autoinstall_config(ctxt, autoinstall_config):
 
 
 @register_action()
-def add_debs_to_pool(ctxt, debs: List[str] = ()):
+def resign_pool(ctxt):
     gpgconf = ctxt.tmpfile()
     gpghome = ctxt.tmpdir()
     with open(gpgconf, 'x') as c:
@@ -335,10 +335,23 @@ Name-Email: noone@nowhere.invalid
 Expire-Date: 0
 """)
     gpgconfp = open(gpgconf)
-    gpg_proc = subprocess.Popen(
+    run(
         ['gpg', '--home', gpghome, '--gen-key', '--batch'],
         stdin=gpgconfp)
 
+    release = ctxt.p('new/iso/dists/stable/Release')
+
+    run(['gpg', '--home', gpghome, '--detach-sign', '--armor', release])
+    os.rename(release + '.asc', release + '.gpg')
+
+    new_fs = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
+    key_path = f'{new_fs}/etc/apt/trusted.gpg.d/custom-iso-key.gpg'
+    with open(key_path, 'w') as new_key:
+        run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
+
+
+@register_action()
+def add_debs_to_pool(ctxt, debs: List[str] = ()):
     from debian import deb822
     pool = ctxt.p('new/iso/pool/main')
     for deb in debs:
@@ -376,15 +389,7 @@ Expire-Date: 0
     with open(release, 'wb') as new_release:
         old.dump(new_release)
 
-    gpg_proc.wait()
-
-    run(['gpg', '--home', gpghome, '--detach-sign', '--armor', release])
-    os.rename(release + '.asc', release + '.gpg')
-
-    new_fs = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
-    key_path = f'{new_fs}/etc/apt/trusted.gpg.d/custom-iso-key.gpg'
-    with open(key_path, 'w') as new_key:
-        run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
+    resign_pool(ctxt)
 
 
 def cache_for_dir(ctxt, dir):
