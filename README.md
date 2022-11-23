@@ -186,13 +186,7 @@ either the autoinstall config directly or a cloud-init user-data file
 installer session, such as ssh keys to be used for the `installer`
 user).
 
-### add-debs-to-pool
-
-**argument**: list of deb files
-
-Add the passed deb files to the repository on the CD so that they are
-available for installation while the installer is running, even if the
-install is done offline.
+### resign-pool
 
 This will generate a new Ed25519 GPG key, sign the package repository
 on the ISO with it, arrange for the public part to end up in
@@ -202,6 +196,17 @@ change to the default apt configuration! Deleting this file in an
 autoinstall `late-command` would be a reasonable thing to do, unless
 you want the option of using the ISO as an apt repository later on.
 
+### add-debs-to-pool
+
+**argument**: list of deb files
+
+Add the passed deb files to the repository on the CD so that they are
+available for installation while the installer is running, even if the
+install is done offline.
+
+This calls `resign-pool` so do read the note about GPG in the
+description of that action.
+
 ### add-packages-to-pool
 
 **argument**: `packages` (list of package names)
@@ -210,7 +215,7 @@ This is a wrapper around `add-debs-to-pool` which takes package names
 rather than deb files. It downloads the listed packages and any others
 needed to satisfy their dependencies from the main Ubuntu archive and
 passes them to `add-debs-to-pool`. Do read the note about GPG in the
-description of that action.
+description of `resign-pool`.
 
 ### unpack-initrd
 
