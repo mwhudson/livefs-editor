@@ -1,5 +1,6 @@
 import contextlib
 import glob
+import json
 import os
 import shlex
 import shutil
@@ -36,6 +37,12 @@ class OverlayMountpoint(_MountBase):
 
     def unchanged(self):
         return os.listdir(self.upperdir) == []
+
+
+def get_sysfs_mounts():
+    cp = run_capture(
+        ['findmnt', '--submounts', '/sys', '--json', '--list'])
+    return json.loads(cp.stdout)['filesystems']
 
 
 class EditContext:
@@ -115,10 +122,13 @@ class EditContext:
                 ('devtmpfs',   'dev'),
                 ('devpts',     'dev/pts'),
                 ('proc',       'proc'),
-                ('sysfs',      'sys'),
-                ('securityfs', 'sys/kernel/security'),
                 ]:
             mnts.append(self.add_mount(typ, typ, f'{mountpoint}/{relpath}'))
+        for fs in get_sysfs_mounts():
+            relpath = fs['target'].lstrip('/')
+            mnts.append(self.add_mount(
+                fs['fstype'], fs['fstype'], f'{mountpoint}/{relpath}',
+                options=fs['options']))
         resolv_conf = f'{mountpoint}/etc/resolv.conf'
         os.rename(resolv_conf, resolv_conf + '.tmp')
         shutil.copy('/etc/resolv.conf', resolv_conf)
