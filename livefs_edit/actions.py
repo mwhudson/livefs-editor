@@ -333,7 +333,7 @@ def add_autoinstall_config(ctxt, autoinstall_config):
 
 
 @register_action()
-def resign_pool(ctxt):
+def resign_pool(ctxt, dist='stable'):
     gpgconf = ctxt.tmpfile()
     gpghome = ctxt.tmpdir()
     with open(gpgconf, 'x') as c:
@@ -351,7 +351,8 @@ Expire-Date: 0
         ['gpg', '--home', gpghome, '--gen-key', '--batch'],
         stdin=gpgconfp)
 
-    release = ctxt.p('new/iso/dists/stable/Release')
+    print(f'new/iso/dists/{dist}/Release')
+    release = ctxt.p(f'new/iso/dists/{dist}/Release')
 
     run(['gpg', '--home', gpghome, '--detach-sign', '--armor', release])
     os.rename(release + '.asc', release + '.gpg')
@@ -361,15 +362,15 @@ Expire-Date: 0
     with open(key_path, 'w') as new_key:
         run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
 
-
 @register_action()
 def add_debs_to_pool(ctxt, debs: List[str] = ()):
     from debian import deb822
     pool = ctxt.p('new/iso/pool/main')
     for deb in debs:
         shutil.copy(deb, pool)
+    dist = ctxt.get_suite()
     arch = ctxt.get_arch()
-    packages = ctxt.p(f'new/iso/dists/stable/main/binary-{arch}/Packages')
+    packages = ctxt.p(f'new/iso/dists/{dist}/main/binary-{arch}/Packages')
     cp = run(
         [
             'apt-ftparchive', '--md5=off', '--sha1=off',
@@ -380,7 +381,7 @@ def add_debs_to_pool(ctxt, debs: List[str] = ()):
         new_packages.write(cp.stdout)
     with gzip.open(packages + '.gz', 'wb') as new_packages:
         new_packages.write(cp.stdout)
-    release = ctxt.p('new/iso/dists/stable/Release')
+    release = ctxt.p(f'new/iso/dists/{dist}/Release')
     with open(release) as o:
         old = deb822.Deb822(o)
     for p in release, release + '.gpg':
@@ -388,7 +389,7 @@ def add_debs_to_pool(ctxt, debs: List[str] = ()):
     cp = run(
         [
             'apt-ftparchive', '--md5=off', '--sha1=off', '--sha512=off',
-            'release', 'dists/stable',
+            'release', 'dists/'+dist+'',
         ],
         cwd=ctxt.p('new/iso'), stdout=subprocess.PIPE)
     # The uncompressed Packages file has to be around when
@@ -401,7 +402,7 @@ def add_debs_to_pool(ctxt, debs: List[str] = ()):
     with open(release, 'wb') as new_release:
         old.dump(new_release)
 
-    resign_pool(ctxt)
+    resign_pool(ctxt, dist=dist)
 
 
 def cache_for_dir(ctxt, dir):
