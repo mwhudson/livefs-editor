@@ -351,7 +351,6 @@ Expire-Date: 0
         ['gpg', '--home', gpghome, '--gen-key', '--batch'],
         stdin=gpgconfp)
 
-    print(f'new/iso/dists/{dist}/Release')
     release = ctxt.p(f'new/iso/dists/{dist}/Release')
 
     run(['gpg', '--home', gpghome, '--detach-sign', '--armor', release])

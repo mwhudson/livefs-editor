@@ -184,10 +184,9 @@ class EditContext:
             return fp.read().strip().split()[-2]
 
     def get_suite(self):
-        # Dirty hack to retrieve the suite version
-        with open(self.p('new/iso/.disk/info')) as fp:
-            s = fp.read().strip().split()[-6]
-            return s.replace('"', '').lower()
+        path=glob.glob('dists/*/Release')
+        suite=path[0].split(os.sep)[1]
+        return suite
 
     def edit_squashfs(self, name, *, add_sys_mounts=True):
         lower = self.mount_squash(name)
