@@ -184,8 +184,8 @@ class EditContext:
             return fp.read().strip().split()[-2]
 
     def get_suite(self):
-        path=glob.glob('dists/*/Release')
-        suite=path[0].split(os.sep)[1]
+        path=glob.glob(self.p('old/iso/dists/*/Release'))
+        suite=path[0].split(os.sep)[6]
         return suite
 
     def edit_squashfs(self, name, *, add_sys_mounts=True):
