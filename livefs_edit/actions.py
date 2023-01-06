@@ -333,7 +333,7 @@ def add_autoinstall_config(ctxt, autoinstall_config):
 
 
 @register_action()
-def resign_pool(ctxt, dist='stable'):
+def resign_pool(ctxt, dist=None):
     gpgconf = ctxt.tmpfile()
     gpghome = ctxt.tmpdir()
     with open(gpgconf, 'x') as c:
@@ -388,7 +388,7 @@ def add_debs_to_pool(ctxt, debs: List[str] = ()):
     cp = run(
         [
             'apt-ftparchive', '--md5=off', '--sha1=off', '--sha512=off',
-            'release', 'dists/'+dist+'',
+            'release', f'dists/{dist}',
         ],
         cwd=ctxt.p('new/iso'), stdout=subprocess.PIPE)
     # The uncompressed Packages file has to be around when
