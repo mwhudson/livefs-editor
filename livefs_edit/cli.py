@@ -65,7 +65,7 @@ def parse(actions, raw_args):
             a = a[2:]
             try:
                 func = actions[a]
-            except AttributeError:
+            except KeyError:
                 raise ArgException(f"unknown action {a!r}")
         elif func is None:
             raise ArgException(f"no action specified for {a!r}")
