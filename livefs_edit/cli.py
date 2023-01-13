@@ -68,7 +68,7 @@ def parse(actions, raw_args):
             except AttributeError:
                 raise ArgException(f"unknown action {a!r}")
         elif func is None:
-            1/0
+            raise ArgException(f"no action specified for {a!r}")
         else:
             func_args.append(a)
 
