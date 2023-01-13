@@ -129,6 +129,18 @@ relative to the main temporary directory. So something like this:
 
 to replace the initrd.
 
+### rm
+
+**argument**: `path`
+
+Remove a file or directory.
+
+```
+--rm new/iso/casper
+```
+
+to remove the directory casper.
+
 ### inject-snap
 
 **argument**: `snap`
