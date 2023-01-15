@@ -6,6 +6,7 @@ import gzip
 import os
 import shlex
 import shutil
+import stat
 import subprocess
 from typing import List
 import yaml
@@ -157,11 +158,22 @@ def install_debs(ctxt, debs: List[str] = ()):
         run(['umount', rootfs_path])
         os.unlink(rootfs_path)
 
+def rm_ro(func, path, _):
+    """Clear readonly attribute and retry removal"""
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
 
 def rm_f(path):
     if os.path.exists(path):
-        os.unlink(path)
+        if os.path.isdir(path):
+            shutil.rmtree(path, onerror = rm_ro)
+        else:
+            os.chmod(path, stat.S_IWRITE)
+            os.unlink(path)
 
+@register_action()
+def rm(ctxt, path):
+    rm_f(ctxt.p(path, allow_abs=True))
 
 def download_snap(ctxt, snap_name, channel):
     dldir = ctxt.tmpdir()
