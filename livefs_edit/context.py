@@ -215,7 +215,10 @@ class EditContext:
     def teardown(self):
         for mount in reversed(self._mounts):
             run(['mount', '--make-rprivate', mount])
-            run(['umount', '-R', mount])
+            try:
+                run(['umount', '-R', mount])
+            except subprocess.CalledProcessError:
+                run(['umount', '-l', mount])
         shutil.rmtree(self.dir)
         for loop in reversed(self._loops):
             run(['losetup', '--detach', loop])
