@@ -334,6 +334,9 @@ def add_autoinstall_config(ctxt, autoinstall_config):
 
 @register_action()
 def resign_pool(ctxt, dist=None):
+    if dist is None:
+        dist = ctxt.get_suite()
+
     gpgconf = ctxt.tmpfile()
     gpghome = ctxt.tmpdir()
     with open(gpgconf, 'x') as c:
@@ -360,6 +363,7 @@ Expire-Date: 0
     key_path = f'{new_fs}/etc/apt/trusted.gpg.d/custom-iso-key.gpg'
     with open(key_path, 'w') as new_key:
         run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
+
 
 @register_action()
 def add_debs_to_pool(ctxt, debs: List[str] = ()):
