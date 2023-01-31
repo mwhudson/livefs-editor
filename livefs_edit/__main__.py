@@ -41,7 +41,7 @@ Actions include:
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
-    if '--help' in argv:
+    if '--help' in argv or len(argv) < 3:
         print(HELP_TXT)
         for action in sorted(ACTIONS.keys()):
             print(f" * --{action.replace('_', '-')}")
