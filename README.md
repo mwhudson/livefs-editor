@@ -19,6 +19,16 @@ distributed ISOs with changes such as those above.
 Some of the things it does probably work on desktop installer ISOs too
 but I haven't thought very hard about that side of things yet.
 
+## A warning
+
+Although this program was written by a Canonical employee on company
+time, it started out as essentially an overgrown shell script used as
+part of installer developement.  It is not a Canonical product and is
+not supported as such.  The "this program is distributed in the hope
+that it will be useful" part of the GPL stanza is as true as ever but
+the "without even the implied warranty of FITNESS FOR A PARTICULAR
+PURPOSE" is perhaps even more true than usual.
+
 ## Dependencies
 
 This script is pretty Linux-dependent and requires `xorriso` and
