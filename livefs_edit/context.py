@@ -208,6 +208,8 @@ class EditContext:
         return release['Suite']
 
     def edit_squashfs(self, name, *, add_sys_mounts=True):
+        if name and name.endswith('.squashfs'):
+            name = name[:-len('.squashfs')]
         lower = self.mount_squash(name)
         target = self.p(f'new/{name}')
         if os.path.exists(target):
