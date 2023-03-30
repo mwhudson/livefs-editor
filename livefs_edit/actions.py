@@ -481,7 +481,13 @@ def add_packages_to_pool(ctxt, packages: List[str]):
     cache.open()
     for p in packages:
         with ctxt.logged(f'marking {p} for installation'):
-            cache[p].mark_install()
+            if "=" in p:
+                package_name, package_version = p.split("=")
+                package = cache[package_name]
+                package.candidate = package.versions.get(package_version)
+                package.mark_install()
+            else:
+                cache[p].mark_install()
     debs = download_missing_pool_debs(ctxt, cache)
     add_debs_to_pool(ctxt, debs=debs)
 
