@@ -158,7 +158,10 @@ def shell(ctxt, command=None):
 
 @register_action()
 def cp(ctxt, source, dest):
-    shutil.copy(ctxt.p(source, allow_abs=True), ctxt.p(dest, allow_abs=True))
+    if os.path.isdir(source):
+        shutil.copytree(ctxt.p(source, allow_abs=True), ctxt.p(dest, allow_abs=True))
+    else:
+        shutil.copy(ctxt.p(source, allow_abs=True), ctxt.p(dest, allow_abs=True))
 
 
 @register_action()
