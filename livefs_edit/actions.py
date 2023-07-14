@@ -162,6 +162,12 @@ def cp(ctxt, source, dest):
 
 
 @register_action()
+def cp_to_base(ctxt, source, dest):
+    base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
+    shutil.copy(ctxt.p(source, allow_abs=True), f'{base}/{dest}')
+
+
+@register_action()
 def install_debs(ctxt, debs: List[str] = ()):
     rootfs = setup_rootfs(ctxt)
     for i, deb in enumerate(debs):
@@ -179,6 +185,18 @@ def rm_ro(func, path, _):
     """Clear readonly attribute and retry removal"""
     os.chmod(path, stat.S_IWRITE)
     func(path)
+
+
+@register_action()
+def rm_from_base(ctxt, path):
+    base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
+    base_path = f'{base}/{path}'
+    if os.path.exists(base_path):
+        if os.path.isdir(base_path):
+            shutil.rmtree(base_path, onerror=rm_ro)
+        else:
+            os.chmod(base_path, stat.S_IWRITE)
+            os.unlink(base_path)
 
 
 def rm_f(path):

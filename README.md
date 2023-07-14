@@ -139,6 +139,21 @@ relative to the main temporary directory. So something like this:
 
 to replace the initrd.
 
+### cp-to-base
+
+**argument**: `source`
+
+**argument**: `dest`
+
+Copy a file to the base image. If `source` is relative it is
+assumed to be relative to the main temporary directory.
+
+```
+--cp /etc/apt/sources.list.d/ppa.sources etc/apt/sources.list.d/ppa.sources
+```
+
+could be used to add a private ppa.
+
 ### rm
 
 **argument**: `path`
@@ -150,6 +165,18 @@ Remove a file or directory.
 ```
 
 to remove the directory casper.
+
+### rm-from-base
+
+**argument**: `path`
+
+Remove a file or directory from the base image.
+
+```
+--rm etc/apt/sources.list.d/ppa.sources
+```
+
+could be used to remove a ppa.
 
 ### inject-snap
 
