@@ -211,11 +211,12 @@ class EditContext:
         if name and name.endswith('.squashfs'):
             name = name[:-len('.squashfs')]
         lower = self.mount_squash(name)
-        target = self.p(f'new/{name}')
+        reltarget = f'new/{name}'
+        target = self.p(reltarget)
         if os.path.exists(target):
             return target
         overlay = self.add_overlay(lower, target)
-        self.log(f"squashfs {name!r} now mounted at {target!r}")
+        self.log(f"squashfs {name!r} now mounted at {reltarget!r}")
         new_squash = self.p(f'new/iso/casper/{name}.squashfs')
 
         def _pre_repack():
@@ -296,8 +297,10 @@ class EditContext:
             ])
         opts = shlex.split(cp.stdout)
         with self.logged("recreating ISO"):
-            run(['xorriso', '-as', 'mkisofs'] + opts +
-                ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')])
+            cmd = ['xorriso', '-as', 'mkisofs'] + opts + \
+                ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')]
+            self.log("running: " + ' '.join(map(shlex.quote, cmd)))
+            run(cmd)
 
     def repack_generic(self, destpath):
         with self.logged(f"copying {self.source_path} to {destpath}"):
