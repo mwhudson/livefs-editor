@@ -98,11 +98,10 @@ class EditContext:
     def tmpfile(self):
         return tempfile.mktemp(dir=self.p('.tmp'))
 
-    def p(self, *args, allow_abs=False):
-        if not allow_abs:
-            for a in args:
-                if a.startswith('/'):
-                    raise Exception('no absolute paths here please')
+    def p(self, *args):
+        for a in args:
+            if a.startswith('/'):
+                raise Exception('no absolute paths here please')
         return os.path.join(self.dir, *args)
 
     def add_loop(self, file):
