@@ -156,9 +156,24 @@ def shell(ctxt, command=None):
     run(cmd, cwd=ctxt.p())
 
 
+def interpret_path(ctxt, path):
+    if path.startswith('/'):
+        return path
+    if path.startswith('$LAYERS['):
+        rbracket = path.find(']')
+        if rbracket == -1 or path[rbracket + 1] != '/':
+            raise Exception(f"could not interpret path {path!r}")
+        index = int(path[len('$LAYERS['):rbracket])
+        path = path[rbracket+2:]
+        base = ctxt.edit_squashfs(
+            get_squash_names(ctxt)[index],
+            add_sys_mounts=index == 0)
+        return os.path.join(base, path)
+
+
 @register_action()
 def cp(ctxt, source, dest):
-    shutil.copy(ctxt.p(source, allow_abs=True), ctxt.p(dest, allow_abs=True))
+    shutil.copy(interpret_path(ctxt, source), interpret_path(ctxt, dest))
 
 
 @register_action()
@@ -192,7 +207,7 @@ def rm_f(path):
 
 @register_action()
 def rm(ctxt, path):
-    rm_f(ctxt.p(path, allow_abs=True))
+    rm_f(interpret_path(ctxt, path))
 
 
 def download_snap(ctxt, snap_name, channel):
