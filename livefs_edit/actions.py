@@ -169,6 +169,7 @@ def interpret_path(ctxt, path):
             get_squash_names(ctxt)[index],
             add_sys_mounts=index == 0)
         return os.path.join(base, path)
+    return ctxt.p(path)
 
 
 @register_action()
