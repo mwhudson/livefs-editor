@@ -692,11 +692,12 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
 
     # Fish the kernel and initrd out and put them in the right place
     # on the ISO.
+    [old_kernel] = glob.glob(ctxt.p('old/iso/casper/vmlinu?'))
     [kernel] = glob.glob(new_kernel_layer.p('boot/vmlinu?-*'))
     [initrd] = glob.glob(new_kernel_layer.p('boot/initrd.img-*'))
     run([
         'mv', kernel,
-        ctxt.p('new/iso/casper/' + os.path.basename(kernel)[:7])])
+        ctxt.p('new/iso/casper/' + os.path.basename(old_kernel))])
     run(['mv', initrd, ctxt.p('new/iso/casper/initrd')])
 
     # Copy the uuid out of the new initrd.
