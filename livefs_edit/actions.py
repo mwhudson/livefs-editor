@@ -249,6 +249,13 @@ def inject_snap(ctxt, snap, channel="stable"):
     rootfs = setup_rootfs(ctxt)
     seed_dir = f'{rootfs}/var/lib/snapd/seed'
     snap_mount = ctxt.add_mount('squashfs', snap, ctxt.tmpdir())
+
+    snap_preseed_binary = '/snap/snapd/current/usr/lib/snapd/snap-preseed'
+    if not os.path.isfile(snap_preseed_binary):
+        snap_preseed_binary = '/usr/lib/snapd/snap-preseed'
+    if not os.path.isfile(snap_preseed_binary):
+        raise FileNotFoundError('snap-preseed not found')
+
     with open(snap_mount.p('meta/snap.yaml')) as fp:
         snap_meta = yaml.safe_load(fp)
 
@@ -289,15 +296,15 @@ def inject_snap(ctxt, snap, channel="stable"):
         if '_preseed' in ctxt._cache:
             return
         with ctxt.logged('running snap-preseed...', '...preseed done'):
-            run(['/usr/lib/snapd/snap-preseed', '--reset', rootfs])
-            run(['/usr/lib/snapd/snap-preseed', rootfs])
+            run([snap_preseed_binary, '--reset', rootfs])
+            run([snap_preseed_binary, rootfs])
         ctxt._cache['_preseed'] = True
 
     def _preseed_cross():
         if '_preseed' in ctxt._cache:
             return
         with ctxt.logged('running snap-preseed --reset...', '...done'):
-            run(['/usr/lib/snapd/snap-preseed', '--reset', rootfs])
+            run([snap_preseed_binary, '--reset', rootfs])
         ctxt._cache['_preseed'] = True
 
     host_arch = run_capture(['dpkg', '--print-architecture']).stdout.strip()
