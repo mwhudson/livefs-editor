@@ -295,3 +295,9 @@ Execute `<cmd>` in a namespace that contains the context object as
 Modify the ISO so the kernel installed via the metapackage
 `linux-<flavor>` will be used to boot the ISO and be installed in the
 target system.
+
+### mount-all-squashfses
+
+Mount all squashfses in `new/iso/casper` at `old/{squash_name}` (this
+is mostly to make poking at ISOs in a subsequent interactive `--shell`
+action easier).

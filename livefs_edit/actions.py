@@ -20,6 +20,7 @@ import functools
 import glob
 import gzip
 import os
+import pathlib
 import shlex
 import shutil
 import stat
@@ -747,3 +748,10 @@ def python(ctxt, cmd=None):
         exec(cmd, ns, ns)
     else:
         code.interact(local=ns)
+
+
+@register_action()
+def mount_all_squashfses(ctxt):
+    casper_dir = pathlib.Path(ctxt.p('new/iso/casper'))
+    for squash in casper_dir.glob('*.squashfs'):
+        ctxt.mount_squash(squash.stem)
