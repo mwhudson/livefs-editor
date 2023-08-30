@@ -396,14 +396,15 @@ def resign_pool(ctxt, dist=None):
 
     gpgconf = ctxt.tmpfile()
     gpghome = ctxt.tmpdir()
+    email = 'noone@nowhere.invalid'
     with open(gpgconf, 'x') as c:
-        c.write("""\
+        c.write(f"""\
 %no-protection
 Key-Type: eddsa
 Key-Curve: Ed25519
 Key-Usage: sign
 Name-Real: Ubuntu Custom ISO One-Time Signing Key
-Name-Email: noone@nowhere.invalid
+Name-Email: {email}
 Expire-Date: 0
 """)
     gpgconfp = open(gpgconf)
@@ -413,7 +414,12 @@ Expire-Date: 0
 
     release = ctxt.p(f'new/iso/dists/{dist}/Release')
 
-    run(['gpg', '--home', gpghome, '--detach-sign', '--armor', release])
+    run([
+        'gpg',
+        '--home', gpghome,
+        '--local-user', email,
+        '--detach-sign', '--armor', release
+    ])
     os.rename(release + '.asc', release + '.gpg')
 
     new_fs = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
