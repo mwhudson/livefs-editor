@@ -162,11 +162,20 @@ class EditContext:
                 ('proc',       'proc'),
                 ]:
             mnts.append(self.add_mount(typ, typ, f'{mountpoint}/{relpath}'))
+        ro_targets = []
         for fs in self.get_sysfs_mounts():
             relpath = fs['target'].lstrip('/')
+            target = f'{mountpoint}/{relpath}'
+            options = fs['options'].split(',')
+            if 'ro' in options:
+                ro_targets.append(target)
+                options.remove('ro')
+            options = ','.join(options)
             mnts.append(self.add_mount(
-                fs['fstype'], fs['fstype'], f'{mountpoint}/{relpath}',
-                options=fs['options']))
+                fs['fstype'], fs['fstype'], target,
+                options=options))
+        for ro_target in ro_targets:
+            self.run(['mount', '-o', 'remount,ro', ro_target])
         resolv_conf = f'{mountpoint}/etc/resolv.conf'
         os.rename(resolv_conf, resolv_conf + '.tmp')
         shutil.copy('/etc/resolv.conf', resolv_conf)
