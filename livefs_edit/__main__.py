@@ -48,6 +48,11 @@ def main(argv=None):
         print()
         sys.exit(0)
 
+    debug = False
+    if argv[0] == '--debug':
+        debug = True
+        argv.pop(0)
+
     sourcepath = argv[0]
     destpath = argv[1]
 
@@ -58,7 +63,7 @@ def main(argv=None):
         destpath = destpath + '.new'
         inplace = True
 
-    ctxt = EditContext(sourcepath)
+    ctxt = EditContext(sourcepath, debug=debug)
 
     if argv[2] == '--action-yaml':
         calls = []

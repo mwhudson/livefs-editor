@@ -28,8 +28,6 @@ import subprocess
 from typing import List
 import yaml
 
-from . import run, run_capture
-
 
 ACTIONS = {}
 
@@ -129,7 +127,7 @@ def setup_rootfs(ctxt, target='rootfs'):
         if overlay.unchanged():
             return
         with ctxt.logged(f'creating new squashfs {new_squash_name}'):
-            run(['mksquashfs', overlay.upperdir, new_squash])
+            ctxt.run(['mksquashfs', overlay.upperdir, new_squash])
         if layerfs_loc == LayerfsLoc.CMDLINE:
             add_cmdline_arg(
                 ctxt,
@@ -154,7 +152,7 @@ def shell(ctxt, command=None):
     cmd = ['bash']
     if command is not None:
         cmd.extend(['-c', command])
-    run(cmd, cwd=ctxt.p())
+    ctxt.run(cmd, cwd=ctxt.p())
 
 
 def interpret_path(ctxt, path):
@@ -187,9 +185,9 @@ def install_debs(ctxt, debs: List[str] = ()):
         rootfs_path = f'{rootfs}/{deb_name}'
         with open(rootfs_path, 'x'):
             pass
-        run(['mount', '--bind', deb, rootfs_path])
-        run(['chroot', rootfs, 'dpkg', '-i', deb_name])
-        run(['umount', rootfs_path])
+        ctxt.run(['mount', '--bind', deb, rootfs_path])
+        ctxt.run(['chroot', rootfs, 'dpkg', '-i', deb_name])
+        ctxt.run(['umount', rootfs_path])
         os.unlink(rootfs_path)
 
 
@@ -215,7 +213,7 @@ def rm(ctxt, path):
 
 def download_snap(ctxt, snap_name, channel):
     dldir = ctxt.tmpdir()
-    run([
+    ctxt.run([
         'snap', 'download',
         '--channel=' + channel,
         '--target-directory=' + dldir,
@@ -297,18 +295,18 @@ def inject_snap(ctxt, snap, channel="stable"):
         if '_preseed' in ctxt._cache:
             return
         with ctxt.logged('running snap-preseed...', '...preseed done'):
-            run([snap_preseed_binary, '--reset', rootfs])
-            run([snap_preseed_binary, rootfs])
+            ctxt.run([snap_preseed_binary, '--reset', rootfs])
+            ctxt.run([snap_preseed_binary, rootfs])
         ctxt._cache['_preseed'] = True
 
     def _preseed_cross():
         if '_preseed' in ctxt._cache:
             return
         with ctxt.logged('running snap-preseed --reset...', '...done'):
-            run([snap_preseed_binary, '--reset', rootfs])
+            ctxt.run([snap_preseed_binary, '--reset', rootfs])
         ctxt._cache['_preseed'] = True
 
-    host_arch = run_capture(['dpkg', '--print-architecture']).stdout.strip()
+    host_arch = ctxt.run_capture(['dpkg', '--print-architecture']).stdout.strip()
 
     if ctxt.get_arch() == host_arch:
         ctxt.add_pre_repack_hook(_preseed_native)
@@ -408,13 +406,13 @@ Name-Email: {email}
 Expire-Date: 0
 """)
     gpgconfp = open(gpgconf)
-    run(
+    ctxt.run(
         ['gpg', '--home', gpghome, '--gen-key', '--batch'],
         stdin=gpgconfp)
 
     release = ctxt.p(f'new/iso/dists/{dist}/Release')
 
-    run([
+    ctxt.run([
         'gpg',
         '--home', gpghome,
         '--local-user', email,
@@ -425,7 +423,7 @@ Expire-Date: 0
     new_fs = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
     key_path = f'{new_fs}/etc/apt/trusted.gpg.d/custom-iso-key.gpg'
     with open(key_path, 'w') as new_key:
-        run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
+        ctxt.run(['gpg', '--home', gpghome, '--export'], stdout=new_key)
 
 
 @register_action()
@@ -437,7 +435,7 @@ def add_debs_to_pool(ctxt, debs: List[str] = ()):
     dist = ctxt.get_suite()
     arch = ctxt.get_arch()
     packages = ctxt.p(f'new/iso/dists/{dist}/main/binary-{arch}/Packages')
-    cp = run(
+    cp = ctxt.run(
         [
             'apt-ftparchive', '--md5=off', '--sha1=off',
             'packages', 'pool/main',
@@ -452,14 +450,14 @@ def add_debs_to_pool(ctxt, debs: List[str] = ()):
         old = deb822.Deb822(o)
     for p in release, release + '.gpg':
         rm_f(p)
-    cp = run(
+    cp = ctxt.run(
         [
             'apt-ftparchive', '--md5=off', '--sha1=off', '--sha512=off',
             'release', f'dists/{dist}',
         ],
         cwd=ctxt.p('new/iso'), stdout=subprocess.PIPE)
     # The uncompressed Packages file has to be around when
-    # apt-ftparchive release is run, but it can be deleted now.
+    # apt-ftparchive release is ctxt.run, but it can be deleted now.
     os.unlink(packages)
     new = deb822.Deb822(cp.stdout)
     for k in old:
@@ -561,7 +559,7 @@ def unpack_initrd(ctxt, target='new/initrd'):
         initrd_path = 'boot/initrd.ubuntu'
     else:
         initrd_path = 'casper/initrd'
-    run(['unmkinitramfs', ctxt.p(f'new/iso/{initrd_path}'), lower])
+    ctxt.run(['unmkinitramfs', ctxt.p(f'new/iso/{initrd_path}'), lower])
     overlay = ctxt.add_overlay(lower, target)
 
     if 'early' in os.listdir(target):
@@ -592,17 +590,17 @@ def unpack_initrd(ctxt, target='new/initrd'):
 @register_action()
 def install_packages(ctxt, packages: List[str]):
     base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
-    run(['chroot', base, 'apt-get', 'update'])
+    ctxt.run(['chroot', base, 'apt-get', 'update'])
     env = os.environ.copy()
     env['DEBIAN_FRONTEND'] = 'noninteractive'
     env['LANG'] = 'C.UTF-8'
-    run(['chroot', base, 'apt-get', 'install', '-y'] + packages, env=env)
+    ctxt.run(['chroot', base, 'apt-get', 'install', '-y'] + packages, env=env)
 
 
 @register_action()
 def add_apt_repository(ctxt, repo):
     base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
-    run(['chroot', base, 'add-apt-repository', '-y', repo])
+    ctxt.run(['chroot', base, 'add-apt-repository', '-y', repo])
 
 
 @register_action()
@@ -688,20 +686,20 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
     ctxt.add_mount(
         None, ctxt.p('new/iso'), new_kernel_layer.p('mnt'), options='bind')
     os_release = new_kernel_layer.p('etc/os-release')
-    codename = run(
+    codename = ctxt.run(
         ['bash', '-c', f'source {os_release}; echo $VERSION_CODENAME'],
         stdout=subprocess.PIPE, encoding='utf-8').stdout.strip()
     new_kernel_layer.write(
         'etc/apt/sources.list',
         f'deb [check-date=no] file:///mnt {codename} main restricted\n',
         )
-    run(['chroot', new_kernel_layer.p(), 'apt-get', 'update'])
+    ctxt.run(['chroot', new_kernel_layer.p(), 'apt-get', 'update'])
 
     # Install the new kernel.
     env = os.environ.copy()
     env['DEBIAN_FRONTEND'] = 'noninteractive'
     env['LANG'] = 'C.UTF-8'
-    run(
+    ctxt.run(
         ['chroot', new_kernel_layer.p(), 'apt-get', 'install', '-y', meta_pkg],
         env=env)
 
@@ -710,17 +708,17 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
     [old_kernel] = glob.glob(ctxt.p('old/iso/casper/vmlinu?'))
     [kernel] = glob.glob(new_kernel_layer.p('boot/vmlinu?-*'))
     [initrd] = glob.glob(new_kernel_layer.p('boot/initrd.img-*'))
-    run([
+    ctxt.run([
         'mv', kernel,
         ctxt.p('new/iso/casper/' + os.path.basename(old_kernel))])
-    run(['mv', initrd, ctxt.p('new/iso/casper/initrd')])
+    ctxt.run(['mv', initrd, ctxt.p('new/iso/casper/initrd')])
 
     # Copy the uuid out of the new initrd.
     initrd_dir = ctxt.tmpdir()
-    run(['unmkinitramfs', ctxt.p('new/iso/casper/initrd'), initrd_dir])
+    ctxt.run(['unmkinitramfs', ctxt.p('new/iso/casper/initrd'), initrd_dir])
     if 'main' in os.listdir(initrd_dir):
         initrd_dir = initrd_dir + '/main'
-    run([
+    ctxt.run([
         'mv',
         f'{initrd_dir}/conf/uuid.conf',
         ctxt.p('new/iso/.disk/casper-uuid-custom'),
@@ -731,15 +729,15 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
 
         def _repack():
             # Remove the changes to the apt config and status.
-            run(['rm', '-rf', f'{new_kernel_layer.upperdir}/var/lib/apt'])
-            run(['rm', '-rf', f'{new_kernel_layer.upperdir}/etc/apt'])
-            run(['rm', new_squash_name])
+            ctxt.run(['rm', '-rf', f'{new_kernel_layer.upperdir}/var/lib/apt'])
+            ctxt.run(['rm', '-rf', f'{new_kernel_layer.upperdir}/etc/apt'])
+            ctxt.run(['rm', new_squash_name])
             # Build the new squashfs!
-            run(['mksquashfs', new_kernel_layer.upperdir, new_squash_name])
+            ctxt.run(['mksquashfs', new_kernel_layer.upperdir, new_squash_name])
 
         ctxt.add_pre_repack_hook(_repack)
     else:
-        run([
+        ctxt.run([
             'mksquashfs',
             new_kernel_layer.p('lib/modules'),
             ctxt.p('new/iso/casper/extras/modules.squashfs-custom'),

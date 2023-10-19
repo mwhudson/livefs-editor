@@ -24,8 +24,6 @@ import shutil
 import subprocess
 import tempfile
 
-from . import run, run_capture
-
 
 class _MountBase:
 
@@ -56,16 +54,11 @@ class OverlayMountpoint(_MountBase):
         return os.listdir(self.upperdir) == []
 
 
-def get_sysfs_mounts():
-    cp = run_capture(
-        ['findmnt', '--submounts', '/sys', '--json', '--list'])
-    return json.loads(cp.stdout)['filesystems']
-
-
 class EditContext:
 
-    def __init__(self, source_path):
+    def __init__(self, source_path, *, debug=False):
         self.source_path = source_path
+        self.debug = debug
         self._source_overlay = None
         self.dir = tempfile.mkdtemp()
         os.mkdir(self.p('.tmp'))
@@ -75,6 +68,30 @@ class EditContext:
         self._loops = []
         self._mounts = []
         self._squash_mounts = {}
+
+    def run(self, cmd, check=True, **kw):
+        if self.debug:
+            msg = []
+            for arg in cmd:
+                arg = shlex.quote(arg)
+                arg = arg.replace(self.dir, '${BASE}')
+                msg.append(arg)
+            msg = ' '.join(msg)
+            self.log(f"running with check={check}, kw={kw}\n{self._indent}    {msg}")
+        cp = subprocess.run(cmd, check=check, **kw)
+        if self.debug:
+            msg = f"exit code {cp.returncode}"
+            if cp.stdout is not None:
+                msg += f" {len(cp.stderr)} bytes of output"
+            if cp.stderr is not None:
+                msg += f" {len(cp.stderr)} bytes of error"
+            self.log(msg)
+        return cp
+
+    def run_capture(self, cmd, **kw):
+        return self.run(
+            cmd, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            **kw)
 
     def log(self, msg):
         print(self._indent + msg)
@@ -105,10 +122,10 @@ class EditContext:
         return os.path.join(self.dir, *args)
 
     def add_loop(self, file):
-        cp = run_capture(['losetup', '--show', '--find', '--partscan', file])
+        cp = self.run_capture(['losetup', '--show', '--find', '--partscan', file])
         dev = cp.stdout.strip()
         self._loops.append(dev)
-        run(['udevadm', 'settle'])
+        self.run(['udevadm', 'settle'])
         self.log(f'set up loop device {dev} backing {file}')
         return dev
 
@@ -124,13 +141,18 @@ class EditContext:
         cmd.append(mountpoint)
         if not os.path.isdir(mountpoint):
             os.makedirs(mountpoint)
-        run_capture(cmd)
+        self.run_capture(cmd)
         self._mounts.append(mountpoint)
         return Mountpoint(device=src, mountpoint=mountpoint)
 
     def umount(self, mountpoint):
         self._mounts.remove(mountpoint)
-        run(['umount', mountpoint])
+        self.run(['umount', mountpoint])
+
+    def get_sysfs_mounts(self):
+        cp = self.run_capture(
+            ['findmnt', '--submounts', '/sys', '--json', '--list'])
+        return json.loads(cp.stdout)['filesystems']
 
     def add_sys_mounts(self, mountpoint):
         mnts = []
@@ -140,7 +162,7 @@ class EditContext:
                 ('proc',       'proc'),
                 ]:
             mnts.append(self.add_mount(typ, typ, f'{mountpoint}/{relpath}'))
-        for fs in get_sysfs_mounts():
+        for fs in self.get_sysfs_mounts():
             relpath = fs['target'].lstrip('/')
             mnts.append(self.add_mount(
                 fs['fstype'], fs['fstype'], f'{mountpoint}/{relpath}',
@@ -229,7 +251,7 @@ class EditContext:
                 return
             with self.logged(f"repacking squashfs {name!r}"):
                 os.unlink(new_squash)
-            run(['mksquashfs', target, new_squash])
+            self.run(['mksquashfs', target, new_squash])
 
         self.add_pre_repack_hook(_pre_repack)
 
@@ -240,14 +262,14 @@ class EditContext:
 
     def teardown(self):
         for mount in reversed(self._mounts):
-            run(['mount', '--make-rprivate', mount])
+            self.run(['mount', '--make-rprivate', mount])
             try:
-                run(['umount', '-R', mount])
+                self.run(['umount', '-R', mount])
             except subprocess.CalledProcessError:
-                run(['umount', '-l', mount])
+                self.run(['umount', '-l', mount])
         shutil.rmtree(self.dir)
         for loop in reversed(self._loops):
-            run(['losetup', '--detach', loop])
+            self.run(['losetup', '--detach', loop])
 
     def find_livefs(self, device):
         for dev in glob.glob(f'{device}*'):
@@ -268,7 +290,7 @@ class EditContext:
         live_dev = self.find_livefs(source_loop)
         source_mount = self.add_mount(
             None, live_dev, self.p('old/iso'), options='ro')
-        cp = run_capture(['findmnt', '-no', 'fstype', source_mount.p()])
+        cp = self.run_capture(['findmnt', '-no', 'fstype', source_mount.p()])
         self.source_fstype = cp.stdout.strip()
         self.log(
             f'found live {self.source_fstype} filesystem on {live_dev}')
@@ -289,7 +311,7 @@ class EditContext:
         return True
 
     def repack_iso(self, destpath):
-        cp = run_capture([
+        cp = self.run_capture([
             'xorriso',
             '-indev', self.source_path,
             '-report_el_torito', 'as_mkisofs',
@@ -299,15 +321,15 @@ class EditContext:
             cmd = ['xorriso', '-as', 'mkisofs'] + opts + \
                 ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')]
             self.log("running: " + ' '.join(map(shlex.quote, cmd)))
-            run(cmd)
+            self.run(cmd)
 
     def repack_generic(self, destpath):
         with self.logged(f"copying {self.source_path} to {destpath}"):
-            run(['cp', self.source_path, destpath])
+            self.run(['cp', self.source_path, destpath])
         destloop = self.add_loop(destpath)
         dest_dev = self.find_livefs(destloop)
         dest_mount = self.add_mount(None, dest_dev, None)
         with self.logged("copying live filesystem"):
-            run(
+            self.run(
                 ['rsync', '-axXvHAS', self.p('new/iso/'), '.'],
                 cwd=dest_mount.p())
