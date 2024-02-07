@@ -56,7 +56,7 @@ class OverlayMountpoint(_MountBase):
 
 class EditContext:
 
-    def __init__(self, source_path, *, debug=False):
+    def __init__(self, source_path, *, arch_emulator=False, debug=False):
         self.source_path = source_path
         self.debug = debug
         self._source_overlay = None
@@ -68,6 +68,8 @@ class EditContext:
         self._loops = []
         self._mounts = []
         self._squash_mounts = {}
+        if arch_emulator:
+            self._arch_emulator = arch_emulator
 
     def run(self, cmd, check=True, chroot=False, **kw):
         if self.debug:
@@ -81,6 +83,8 @@ class EditContext:
         if chroot:
             cmd.insert(0,chroot)
             cmd.insert(0,"chroot")
+            if self._arch_emulator:
+                cmd.insert(0, self._arch_emulator)
 
         cp = subprocess.run(cmd, check=check, **kw)
         if self.debug:

@@ -49,8 +49,13 @@ def main(argv=None):
         sys.exit(0)
 
     debug = False
+    arch_emulator = False
     if argv[0] == '--debug':
         debug = True
+        argv.pop(0)
+    if argv[0] == '--arch_emulator':
+        argv.pop(0)
+        arch_emulator = argv[0]
         argv.pop(0)
 
     sourcepath = argv[0]
@@ -63,7 +68,7 @@ def main(argv=None):
         destpath = destpath + '.new'
         inplace = True
 
-    ctxt = EditContext(sourcepath, debug=debug)
+    ctxt = EditContext(sourcepath, debug=debug, arch_emulator=arch_emulator)
 
     if argv[2] == '--action-yaml':
         calls = []
