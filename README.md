@@ -301,3 +301,14 @@ target system.
 Mount all squashfses in `new/iso/casper` at `old/{squash_name}` (this
 is mostly to make poking at ISOs in a subsequent interactive `--shell`
 action easier).
+
+## Cross-arch modification
+
+When working on an ISO with a different architecture than your host,
+you can pass `--arch_emulator` to specify which emulation binary to use
+when executing binary inside the ISO (such as packet installation) as a first
+argument of the command line.
+For example, for arm64 iso:
+```
+--arch_emulator qemu-aarch64-static
+````
