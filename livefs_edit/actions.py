@@ -335,6 +335,11 @@ def cmdline_config_files(ctxt):
 
 @register_action()
 def add_cmdline_arg(ctxt, arg, persist: bool = True):
+    def escape_arg():
+        if path.endswith('boot/grub/grub.cfg'):
+            return arg.replace(';', r'\;')
+        return arg
+
     for path in cmdline_config_files(ctxt):
         with ctxt.logged(f'rewriting {path}'):
             with open(path) as fp:
@@ -343,10 +348,10 @@ def add_cmdline_arg(ctxt, arg, persist: bool = True):
                 for line in inputlines:
                     if '---' in line:
                         if persist:
-                            line = line.rstrip() + ' ' + arg + '\n'
+                            line = line.rstrip() + ' ' + escape_arg() + '\n'
                         else:
                             before, after = line.split('---', 1)
-                            line = before.rstrip() + ' ' + arg + ' ---' + after
+                            line = before.rstrip() + ' ' + escape_arg() + ' ---' + after
                     outfp.write(line)
 
 
