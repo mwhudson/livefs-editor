@@ -186,7 +186,7 @@ def install_debs(ctxt, debs: List[str] = ()):
         with open(rootfs_path, 'x'):
             pass
         ctxt.run(['mount', '--bind', deb, rootfs_path])
-        ctxt.run(['chroot', rootfs, 'dpkg', '-i', deb_name])
+        ctxt.run(['dpkg', '-i', deb_name], chroot=rootfs)
         ctxt.run(['umount', rootfs_path])
         os.unlink(rootfs_path)
 
@@ -590,17 +590,17 @@ def unpack_initrd(ctxt, target='new/initrd'):
 @register_action()
 def install_packages(ctxt, packages: List[str]):
     base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
-    ctxt.run(['chroot', base, 'apt-get', 'update'])
+    ctxt.run(['apt-get', 'update'], chroot=base)
     env = os.environ.copy()
     env['DEBIAN_FRONTEND'] = 'noninteractive'
     env['LANG'] = 'C.UTF-8'
-    ctxt.run(['chroot', base, 'apt-get', 'install', '-y'] + packages, env=env)
+    ctxt.run(['apt-get', 'install', '-y'] + packages, env=env, chroot=base)
 
 
 @register_action()
 def add_apt_repository(ctxt, repo):
     base = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
-    ctxt.run(['chroot', base, 'add-apt-repository', '-y', repo])
+    ctxt.run(['add-apt-repository', '-y', repo], chroot=base)
 
 
 @register_action()
@@ -693,15 +693,15 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
         'etc/apt/sources.list',
         f'deb [check-date=no] file:///mnt {codename} main restricted\n',
         )
-    ctxt.run(['chroot', new_kernel_layer.p(), 'apt-get', 'update'])
+    ctxt.run(['apt-get', 'update'], chroot=new_kernel_layer.p())
 
     # Install the new kernel.
     env = os.environ.copy()
     env['DEBIAN_FRONTEND'] = 'noninteractive'
     env['LANG'] = 'C.UTF-8'
     ctxt.run(
-        ['chroot', new_kernel_layer.p(), 'apt-get', 'install', '-y', meta_pkg],
-        env=env)
+        ['apt-get', 'install', '-y', meta_pkg],
+        env=env, chroot=new_kernel_layer.p())
 
     # Fish the kernel and initrd out and put them in the right place
     # on the ISO.

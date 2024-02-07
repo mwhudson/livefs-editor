@@ -69,7 +69,7 @@ class EditContext:
         self._mounts = []
         self._squash_mounts = {}
 
-    def run(self, cmd, check=True, **kw):
+    def run(self, cmd, check=True, chroot=False, **kw):
         if self.debug:
             msg = []
             for arg in cmd:
@@ -78,6 +78,10 @@ class EditContext:
                 msg.append(arg)
             msg = ' '.join(msg)
             self.log(f"running with check={check}, kw={kw}\n{self._indent}    {msg}")
+        if chroot:
+            cmd.insert(0,chroot)
+            cmd.insert(0,"chroot")
+
         cp = subprocess.run(cmd, check=check, **kw)
         if self.debug:
             msg = f"exit code {cp.returncode}"
