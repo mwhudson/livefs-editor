@@ -328,6 +328,7 @@ class EditContext:
         opts = shlex.split(cp.stdout)
         with self.logged("recreating ISO"):
             cmd = ['xorriso', '-as', 'mkisofs'] + opts + \
+                ['-iso-level', '4'] + \
                 ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')]
             self.log("running: " + ' '.join(map(shlex.quote, cmd)))
             self.run(cmd)
