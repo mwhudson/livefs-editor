@@ -68,6 +68,7 @@ class EditContext:
         self._loops = []
         self._mounts = []
         self._squash_mounts = {}
+        self._xorriso_extra_args = []
 
     def run(self, cmd, check=True, **kw):
         if self.debug:
@@ -328,7 +329,8 @@ class EditContext:
         opts = shlex.split(cp.stdout)
         with self.logged("recreating ISO"):
             cmd = ['xorriso', '-as', 'mkisofs'] + opts + \
-                ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')]
+                ['-o', destpath, '-V', 'Ubuntu custom', self.p('new/iso')] + \
+                self._xorriso_extra_args
             self.log("running: " + ' '.join(map(shlex.quote, cmd)))
             self.run(cmd)
 

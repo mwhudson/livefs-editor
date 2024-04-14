@@ -223,6 +223,13 @@ either the autoinstall config directly or a cloud-init user-data file
 installer session, such as ssh keys to be used for the `installer`
 user).
 
+### add-xorriso-args
+
+**argument**: list of xorriso argument(s)
+
+Add one or more extra arguments for `xorriso`, after the ones that
+livefs-editor already supplies.
+
 ### resign-pool
 
 This will generate a new Ed25519 GPG key, sign the package repository

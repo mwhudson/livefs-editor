@@ -334,6 +334,11 @@ def cmdline_config_files(ctxt):
 
 
 @register_action()
+def add_xorriso_args(ctx, xorriso_args: List[str] = ()):
+    ctx._xorriso_extra_args.extend(xorriso_args)
+
+
+@register_action()
 def add_cmdline_arg(ctxt, arg, persist: bool = True):
     for path in cmdline_config_files(ctxt):
         with ctxt.logged(f'rewriting {path}'):
