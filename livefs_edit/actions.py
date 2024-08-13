@@ -510,8 +510,15 @@ def cache_for_dir(ctxt, dir):
         apt_pkg.config.clear(key)
     apt_pkg.config["Dir"] = dir
     apt_pkg.init_config()
+
     apt_pkg.config["APT::Architecture"] = ctxt.get_arch()
-    apt_pkg.config["APT::Architectures"] = ctxt.get_arch()
+
+    apt_pkg.config["APT::Architectures::"] = ctxt.get_arch()
+
+    # for multi-arch
+    for arch in ctxt.get_extra_arches():
+        apt_pkg.config["APT::Architectures::"] = arch
+
     apt_pkg.init_system()
     return Cache()
 
@@ -804,3 +811,7 @@ def mount_all_layers(ctxt, target='mounts'):
         squash_names = get_layer_part_names(squash.stem)
         lowers = [ctxt.mount_squash(name) for name in squash_names]
         ctxt.add_overlay(lowers, ctxt.p(f'{target}/{squash.stem}'))
+
+@register_action()
+def add_arch(ctxt, arch):
+    ctxt.add_arch(arch)
