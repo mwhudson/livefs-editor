@@ -198,7 +198,7 @@ def rm_ro(func, path, _):
 
 
 def rm_f(path):
-    if os.path.exists(path):
+    if os.path.lexists(path):
         if os.path.isdir(path):
             shutil.rmtree(path, onerror=rm_ro)
         else:
