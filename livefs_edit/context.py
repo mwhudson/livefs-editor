@@ -74,7 +74,7 @@ class EditContext:
         if self.debug:
             msg = []
             for arg in cmd:
-                arg = shlex.quote(arg)
+                arg = shlex.quote(str(arg))
                 arg = arg.replace(self.dir, '${BASE}')
                 msg.append(arg)
             msg = ' '.join(msg)
