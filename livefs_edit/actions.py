@@ -560,7 +560,9 @@ def unpack_initrd(ctxt, target='new/initrd'):
     target = ctxt.p(target)
     lower = ctxt.p('old/initrd')
     arch = ctxt.get_arch()
-    if arch == 's390x':
+    if 'INITRD_PATH' in os.environ:
+        initrd_path = os.environ['INITRD_PATH']
+    elif arch == 's390x':
         initrd_path = 'boot/initrd.ubuntu'
     else:
         initrd_path = 'casper/initrd'
