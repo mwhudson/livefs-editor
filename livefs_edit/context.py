@@ -83,7 +83,7 @@ class EditContext:
         if self.debug:
             msg = f"exit code {cp.returncode}"
             if cp.stdout is not None:
-                msg += f" {len(cp.stderr)} bytes of output"
+                msg += f" {len(cp.stdout)} bytes of output"
             if cp.stderr is not None:
                 msg += f" {len(cp.stderr)} bytes of error"
             self.log(msg)
