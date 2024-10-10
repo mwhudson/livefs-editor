@@ -91,18 +91,28 @@ def get_layerfs_path(ctxt):
     return None, LayerfsLoc.NONE
 
 
+def get_layer_part_names(squash_base_name):
+    parts = squash_base_name.split('.')
+    basenames = []
+    for i in range(0, len(parts)):
+        basenames.append('.'.join(parts[:i+1]))
+    return basenames
+
+
 @cached
 def get_squash_names(ctxt):
     layerfs_path = get_layerfs_path(ctxt)[0]
     if layerfs_path:
-        parts = os.path.splitext(layerfs_path)[0].split('.')
-        basenames = []
-        for i in range(0, len(parts)):
-            basenames.append('.'.join(parts[:i+1]))
+        return get_layer_part_names(os.path.splitext(layerfs_path)[0])
     else:
-        basenames = []
-        for path in glob.glob(ctxt.p('old/iso/casper/*.squashfs')):
-            basenames.append(os.path.splitext(os.path.basename(path))[0])
+        return get_all_squash_names(ctxt)
+
+
+@cached
+def get_all_squash_names(ctxt):
+    basenames = []
+    for path in glob.glob(ctxt.p('old/iso/casper/*.squashfs')):
+        basenames.append(os.path.splitext(os.path.basename(path))[0])
     return basenames
 
 
@@ -766,3 +776,13 @@ def mount_all_squashfses(ctxt):
     casper_dir = pathlib.Path(ctxt.p('new/iso/casper'))
     for squash in casper_dir.glob('*.squashfs'):
         ctxt.mount_squash(squash.stem)
+
+
+@register_action()
+def mount_all_layers(ctxt, target='mounts'):
+    casper_dir = pathlib.Path(ctxt.p('new/iso/casper'))
+
+    for squash in casper_dir.glob('*.squashfs'):
+        squash_names = get_layer_part_names(squash.stem)
+        lowers = [ctxt.mount_squash(name) for name in squash_names]
+        ctxt.add_overlay(lowers, ctxt.p(f'{target}/{squash.stem}'))
