@@ -515,9 +515,8 @@ def download_missing_pool_debs(ctxt, cache):
 @register_action()
 def add_packages_to_pool(ctxt, packages: List[str]):
     from apt.progress.text import AcquireProgress
-    fs = ctxt.mount_squash(get_squash_names(ctxt)[0])
-    overlay = ctxt.add_overlay(fs, ctxt.tmpdir())
-    cache = cache_for_dir(ctxt, overlay.p())
+    fs = ctxt.edit_squashfs(get_squash_names(ctxt)[0])
+    cache = cache_for_dir(ctxt, fs)
     with ctxt.logged(
             '** updating apt lists... **',
             '** updating apt lists done **'):
