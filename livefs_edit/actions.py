@@ -25,7 +25,7 @@ import shlex
 import shutil
 import stat
 import subprocess
-from typing import List
+from typing import List, Optional, Tuple
 import yaml
 
 
@@ -70,20 +70,29 @@ class LayerfsLoc(enum.Enum):
     INITRD = enum.auto()
 
 
-def get_layer_conf_path(ctxt) -> str:
-    initrd_path = unpack_initrd(ctxt)
-    if 'main' in os.listdir(initrd_path):
-        initrd_path = initrd_path + '/main'
-    return f'{initrd_path}/conf/conf.d/default-layer.conf'
+def get_layer_conf_path(ctxt) -> Optional[str]:
+    dir = pathlib.Path(unpack_initrd(ctxt))
+    default_layer_conf = dir / "conf/conf.d/default-layer.conf"
+    if default_layer_conf.exists():
+        return str(default_layer_conf)
+
+    for subdir in dir.iterdir():
+        if not subdir.is_dir():
+            continue
+        default_layer_conf = subdir / "conf/conf.d/default-layer.conf"
+        if default_layer_conf.exists():
+            return str(default_layer_conf)
+
+    return None
 
 
 @cached
-def get_layerfs_path(ctxt):
+def get_layerfs_path(ctxt) -> Tuple[Optional[str], LayerfsLoc]:
     cmdline_val = get_cmdline_arg(ctxt, 'layerfs-path')
     if cmdline_val is not None:
         return cmdline_val, LayerfsLoc.CMDLINE
     layer_conf_path = get_layer_conf_path(ctxt)
-    if os.path.exists(layer_conf_path):
+    if layer_conf_path is not None:
         with open(layer_conf_path) as fp:
             for line in fp:
                 line = line.strip()
@@ -149,6 +158,7 @@ def setup_rootfs(ctxt, target='rootfs'):
                 persist=False)
         elif layerfs_loc == LayerfsLoc.INITRD:
             layer_conf_path = get_layer_conf_path(ctxt)
+            assert layer_conf_path is not None
             with open(layer_conf_path, 'w') as fp:
                 fp.write(
                     f"LAYERFS_PATH={new_squash_name}.squashfs\n")
