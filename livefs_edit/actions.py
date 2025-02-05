@@ -590,7 +590,8 @@ def unpack_initrd(ctxt, target='new/initrd'):
     ctxt.run(['unmkinitramfs', ctxt.p(f'new/iso/{initrd_path}'), lower])
     overlay = ctxt.add_overlay(lower, target)
 
-    if 'early' in os.listdir(target):
+    multipart_dirs = set(['early', 'cpio1'])
+    if bool(multipart_dirs & set(os.listdir(target))):
         def _pre_repack_multi():
             if overlay.unchanged():
                 return
