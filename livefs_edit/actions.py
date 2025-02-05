@@ -70,15 +70,19 @@ class LayerfsLoc(enum.Enum):
     INITRD = enum.auto()
 
 
+def get_layer_conf_path(ctxt) -> str:
+    initrd_path = unpack_initrd(ctxt)
+    if 'main' in os.listdir(initrd_path):
+        initrd_path = initrd_path + '/main'
+    return f'{initrd_path}/conf/conf.d/default-layer.conf'
+
+
 @cached
 def get_layerfs_path(ctxt):
     cmdline_val = get_cmdline_arg(ctxt, 'layerfs-path')
     if cmdline_val is not None:
         return cmdline_val, LayerfsLoc.CMDLINE
-    initrd_path = unpack_initrd(ctxt)
-    if 'main' in os.listdir(initrd_path):
-        initrd_path = initrd_path + '/main'
-    layer_conf_path = f'{initrd_path}/conf/conf.d/default-layer.conf'
+    layer_conf_path = get_layer_conf_path(ctxt)
     if os.path.exists(layer_conf_path):
         with open(layer_conf_path) as fp:
             for line in fp:
@@ -144,10 +148,7 @@ def setup_rootfs(ctxt, target='rootfs'):
                 arg=f"layerfs-path={new_squash_name}.squashfs",
                 persist=False)
         elif layerfs_loc == LayerfsLoc.INITRD:
-            initrd_path = unpack_initrd(ctxt)
-            if 'main' in os.listdir(initrd_path):
-                initrd_path = initrd_path + '/main'
-            layer_conf_path = f'{initrd_path}/conf/conf.d/default-layer.conf'
+            layer_conf_path = get_layer_conf_path(ctxt)
             with open(layer_conf_path, 'w') as fp:
                 fp.write(
                     f"LAYERFS_PATH={new_squash_name}.squashfs\n")
