@@ -597,10 +597,12 @@ def unpack_initrd(ctxt, target='new/initrd'):
                 return
             with ctxt.logged(f'repacking initrd to {initrd_path} ...', 'done'):
                 with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
-                    for dir in sorted(os.listdir(target)):
+                    dirs = sorted(pathlib.Path(target).iterdir())
+                    for idx, dir in enumerate(dirs):
+                        assert dir.is_dir()
+                        compress = idx == len(dirs) - 1
                         with ctxt.logged(f'packing {dir}'):
-                            pack_for_initrd(
-                                f'{target}/{dir}', dir == "main", out)
+                            pack_for_initrd(str(dir), compress, out)
 
         ctxt.add_pre_repack_hook(_pre_repack_multi)
     else:
