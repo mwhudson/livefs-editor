@@ -70,20 +70,28 @@ class LayerfsLoc(enum.Enum):
     INITRD = enum.auto()
 
 
-def get_layer_conf_path(ctxt) -> Optional[str]:
+def _find_file_in_initrd(ctxt, relpath: str) -> Optional[str]:
     dir = pathlib.Path(unpack_initrd(ctxt))
-    default_layer_conf = dir / "conf/conf.d/default-layer.conf"
-    if default_layer_conf.exists():
-        return str(default_layer_conf)
+    potential_file = dir / relpath
+    if potential_file.exists():
+        return str(potential_file)
 
     for subdir in dir.iterdir():
         if not subdir.is_dir():
             continue
-        default_layer_conf = subdir / "conf/conf.d/default-layer.conf"
-        if default_layer_conf.exists():
-            return str(default_layer_conf)
+        potential_file = subdir / relpath
+        if potential_file.exists():
+            return str(potential_file)
 
     return None
+
+
+def get_layer_conf_path(ctxt) -> Optional[str]:
+    return _find_file_in_initrd(ctxt, "conf/conf.d/default-layer.conf")
+
+
+def get_uuid_conf_path(ctxt) -> Optional[str]:
+    return _find_file_in_initrd(ctxt, "conf/uuid.conf")
 
 
 @cached
@@ -747,13 +755,9 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
     # Copy the uuid out of the new initrd.
     initrd_dir = ctxt.tmpdir()
     ctxt.run(['unmkinitramfs', ctxt.p('new/iso/casper/initrd'), initrd_dir])
-    if 'main' in os.listdir(initrd_dir):
-        initrd_dir = initrd_dir + '/main'
-    ctxt.run([
-        'mv',
-        f'{initrd_dir}/conf/uuid.conf',
-        ctxt.p('new/iso/.disk/casper-uuid-custom'),
-        ])
+    uuid_conf = get_uuid_conf_path(ctxt)
+    assert uuid_conf is not None
+    ctxt.run(['mv', uuid_conf, ctxt.p('new/iso/.disk/casper-uuid-custom')])
 
     if layerfs_path is not None:
         new_squash_name = ctxt.p(f'new/iso/casper/{squash_name}.squashfs')
