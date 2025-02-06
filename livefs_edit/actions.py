@@ -76,7 +76,7 @@ def _find_file_in_initrd(ctxt, relpath: str) -> Optional[str]:
     if potential_file.exists():
         return str(potential_file)
 
-    for subdir in dir.iterdir():
+    for subdir in sorted(dir.iterdir(), reverse=True):
         if not subdir.is_dir():
             continue
         potential_file = subdir / relpath
