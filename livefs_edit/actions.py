@@ -25,7 +25,7 @@ import shlex
 import shutil
 import stat
 import subprocess
-from typing import List
+from typing import List, Optional, Tuple
 import yaml
 
 
@@ -70,16 +70,37 @@ class LayerfsLoc(enum.Enum):
     INITRD = enum.auto()
 
 
+def _find_file_in_initrd(ctxt, relpath: str) -> Optional[str]:
+    dir = pathlib.Path(unpack_initrd(ctxt))
+    potential_file = dir / relpath
+    if potential_file.exists():
+        return str(potential_file)
+
+    for subdir in sorted(dir.iterdir(), reverse=True):
+        if not subdir.is_dir():
+            continue
+        potential_file = subdir / relpath
+        if potential_file.exists():
+            return str(potential_file)
+
+    return None
+
+
+def get_layer_conf_path(ctxt) -> Optional[str]:
+    return _find_file_in_initrd(ctxt, "conf/conf.d/default-layer.conf")
+
+
+def get_uuid_conf_path(ctxt) -> Optional[str]:
+    return _find_file_in_initrd(ctxt, "conf/uuid.conf")
+
+
 @cached
-def get_layerfs_path(ctxt):
+def get_layerfs_path(ctxt) -> Tuple[Optional[str], LayerfsLoc]:
     cmdline_val = get_cmdline_arg(ctxt, 'layerfs-path')
     if cmdline_val is not None:
         return cmdline_val, LayerfsLoc.CMDLINE
-    initrd_path = unpack_initrd(ctxt)
-    if 'main' in os.listdir(initrd_path):
-        initrd_path = initrd_path + '/main'
-    layer_conf_path = f'{initrd_path}/conf/conf.d/default-layer.conf'
-    if os.path.exists(layer_conf_path):
+    layer_conf_path = get_layer_conf_path(ctxt)
+    if layer_conf_path is not None:
         with open(layer_conf_path) as fp:
             for line in fp:
                 line = line.strip()
@@ -144,10 +165,8 @@ def setup_rootfs(ctxt, target='rootfs'):
                 arg=f"layerfs-path={new_squash_name}.squashfs",
                 persist=False)
         elif layerfs_loc == LayerfsLoc.INITRD:
-            initrd_path = unpack_initrd(ctxt)
-            if 'main' in os.listdir(initrd_path):
-                initrd_path = initrd_path + '/main'
-            layer_conf_path = f'{initrd_path}/conf/conf.d/default-layer.conf'
+            layer_conf_path = get_layer_conf_path(ctxt)
+            assert layer_conf_path is not None
             with open(layer_conf_path, 'w') as fp:
                 fp.write(
                     f"LAYERFS_PATH={new_squash_name}.squashfs\n")
@@ -579,16 +598,19 @@ def unpack_initrd(ctxt, target='new/initrd'):
     ctxt.run(['unmkinitramfs', ctxt.p(f'new/iso/{initrd_path}'), lower])
     overlay = ctxt.add_overlay(lower, target)
 
-    if 'early' in os.listdir(target):
+    multipart_dirs = set(['early', 'cpio1'])
+    if bool(multipart_dirs & set(os.listdir(target))):
         def _pre_repack_multi():
             if overlay.unchanged():
                 return
             with ctxt.logged(f'repacking initrd to {initrd_path} ...', 'done'):
                 with open(ctxt.p(f'new/iso/{initrd_path}'), 'wb') as out:
-                    for dir in sorted(os.listdir(target)):
+                    dirs = sorted(pathlib.Path(target).iterdir())
+                    for idx, dir in enumerate(dirs):
+                        assert dir.is_dir()
+                        compress = idx == len(dirs) - 1
                         with ctxt.logged(f'packing {dir}'):
-                            pack_for_initrd(
-                                f'{target}/{dir}', dir == "main", out)
+                            pack_for_initrd(str(dir), compress, out)
 
         ctxt.add_pre_repack_hook(_pre_repack_multi)
     else:
@@ -733,13 +755,9 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
     # Copy the uuid out of the new initrd.
     initrd_dir = ctxt.tmpdir()
     ctxt.run(['unmkinitramfs', ctxt.p('new/iso/casper/initrd'), initrd_dir])
-    if 'main' in os.listdir(initrd_dir):
-        initrd_dir = initrd_dir + '/main'
-    ctxt.run([
-        'mv',
-        f'{initrd_dir}/conf/uuid.conf',
-        ctxt.p('new/iso/.disk/casper-uuid-custom'),
-        ])
+    uuid_conf = get_uuid_conf_path(ctxt)
+    assert uuid_conf is not None
+    ctxt.run(['mv', uuid_conf, ctxt.p('new/iso/.disk/casper-uuid-custom')])
 
     if layerfs_path is not None:
         new_squash_name = ctxt.p(f'new/iso/casper/{squash_name}.squashfs')

@@ -267,7 +267,7 @@ description of `resign-pool`.
 
 Unpack the initrd using unmkinitramfs into `target` (contents will
 likely end up in subdirectories called things like `early`, `early2`
-and `main`, at least on amd64) and arrange for these to be repacked
+and `main`, or `cpioN`, at least on amd64) and arrange for these to be repacked
 into a replacement initrd for the modified ISO if any changes are made.
 
 ### add-apt-repository
