@@ -516,7 +516,7 @@ def cache_for_dir(ctxt, dir):
     return Cache()
 
 
-def download_missing_pool_debs(ctxt, cache):
+def download_missing_pool_debs(ctxt, packages):
     tdir = ctxt.tmpdir()
     pool_debs = set()
     for dirpath, dirnames, filenames in os.walk(ctxt.p('new/iso/pool')):
@@ -524,7 +524,7 @@ def download_missing_pool_debs(ctxt, cache):
             if fname.endswith('.deb'):
                 pool_debs.add(fname)
     debs = []
-    for p in cache.get_changes():
+    for p in packages:
         fname = os.path.basename(p.candidate.filename)
         if fname not in pool_debs:
             debs.append(p.candidate.fetch_binary(tdir))
@@ -542,6 +542,9 @@ def add_packages_to_pool(ctxt, packages: List[str]):
             '** updating apt lists done **'):
         cache.update(AcquireProgress())
     cache.open()
+
+    changes = set()
+
     for p in packages:
         with ctxt.logged(f'marking {p} for installation'):
             if "=" in p:
@@ -551,7 +554,8 @@ def add_packages_to_pool(ctxt, packages: List[str]):
                 package.mark_install()
             else:
                 cache[p].mark_install()
-    debs = download_missing_pool_debs(ctxt, cache)
+        changes = changes.union(set(cache.get_changes()))
+    debs = download_missing_pool_debs(ctxt, changes)
     add_debs_to_pool(ctxt, debs=debs)
 
 
