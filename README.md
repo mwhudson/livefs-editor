@@ -225,7 +225,7 @@ user).
 
 ### add-xorriso-args
 
-**argument**: list of xorriso argument(s)
+**argument**: `xorriso_args` list of xorriso argument(s)
 
 Add one or more extra arguments for `xorriso`, after the ones that
 livefs-editor already supplies.
