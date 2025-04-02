@@ -23,6 +23,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+from debian import deb822
 
 
 class _MountBase:
@@ -232,10 +233,9 @@ class EditContext:
             return fp.read().strip().split()[-2]
 
     def get_suite(self):
-        from deb822 import Deb822
         paths = glob.glob(self.p('old/iso/dists/*/Release'))
         with open(paths[0]) as fp:
-            release = Deb822(fp)
+            release = deb822.Deb822(fp)
         return release['Suite']
 
     def edit_squashfs(self, name, *, add_sys_mounts=True):
