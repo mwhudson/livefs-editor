@@ -308,3 +308,8 @@ target system.
 Mount all squashfses in `new/iso/casper` at `old/{squash_name}` (this
 is mostly to make poking at ISOs in a subsequent interactive `--shell`
 action easier).
+
+### add-arch
+
+Add support for extra architectures (multi-arch). This is equivalent of running `dpkg --add-architecture <arch>`.
+It receives exactly one argument.
