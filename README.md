@@ -133,7 +133,7 @@ code, that aborts the run.
 Copy a file. The paths `source` and `dest` are interpreted in a special way:
 
  * Absolute paths (i.e. paths starting with '/') are handled as is.
- * A magic prefix of '$LAYER[n]' is handled by mounting the n'th layer
+ * A magic prefix of '$LAYERS[n]' is handled by mounting the n'th layer
    if needed and interpreting the remainer of the path relative to the
    base of that layer.
  * Other paths are interpreted relative to the main temporary
@@ -148,7 +148,7 @@ So something like this:
 to replace the initrd.  And something like this:
 
 ```
---cp /path/to/sources.list '$LAYER[0]/etc/apt/sources.list'
+--cp /path/to/sources.list '$LAYERS[0]/etc/apt/sources.list'
 ```
 
 to overwrite sources.list in the base layer.
