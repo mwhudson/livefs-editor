@@ -4,3 +4,31 @@ requires = [
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["livefs_edit"]
+
+[project]
+name = "livefs-edit"
+version = "0.0.4"
+dependencies = [
+    "PyYAML"
+]
+requires-python = ">=3.6"
+authors = [
+    { name = "Michael Hudson-Doyle", email = "michael.hudson@ubuntu.com" },
+]
+description = "Tools for modifying Ubuntu Live ISOs"
+readme = { file = "README.md", content-type = "text/markdown" }
+license = "GPL-3.0"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+]
+
+[project.urls]
+Homepage = "https://github.com/mwhudson/livefs-editor"
+Issues = "https://github.com/mwhudson/livefs-editor/issues"
+
+[project.entry-points."console_scripts"]
+livefs-edit = "livefs_edit:__main__.main"
