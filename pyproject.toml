@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["livefs_edit"]
+where = ["."]
 
 [project]
 name = "livefs-edit"
