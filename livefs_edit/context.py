@@ -69,6 +69,7 @@ class EditContext:
         self._mounts = []
         self._squash_mounts = {}
         self._xorriso_extra_args = []
+        self._extra_arches = []
 
     def run(self, cmd, check=True, **kw):
         if self.debug:
@@ -230,6 +231,12 @@ class EditContext:
         # Is this really the best way??
         with open(self.p('new/iso/.disk/info')) as fp:
             return fp.read().strip().split()[-2]
+
+    def add_arch(self, arch):
+        self._extra_arches.append(arch)
+
+    def get_extra_arches(self):
+        return self._extra_arches
 
     def get_suite(self):
         from deb822 import Deb822
