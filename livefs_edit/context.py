@@ -232,7 +232,7 @@ class EditContext:
             return fp.read().strip().split()[-2]
 
     def get_suite(self):
-        from deb822 import Deb822
+        from debian.deb822 import Deb822
         paths = glob.glob(self.p('old/iso/dists/*/Release'))
         with open(paths[0]) as fp:
             release = Deb822(fp)
