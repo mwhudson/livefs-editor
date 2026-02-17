@@ -660,7 +660,7 @@ def replace_kernel(ctxt, flavor):
     if layerfs_path:
         # Find layers below the one that adds the kernel.
         below_kernel = [base]
-        for squash_name in squash_names[1:]:
+        for squash_name in squash_names:
             squash_mount = ctxt.mount_squash(squash_name)
             modules_dir = squash_mount.p('usr/lib/modules')
             if os.path.exists(modules_dir):
