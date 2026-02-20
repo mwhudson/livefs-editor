@@ -660,7 +660,7 @@ def replace_kernel(ctxt, flavor):
     if layerfs_path:
         # Find layers below the one that adds the kernel.
         below_kernel = [base]
-        for squash_name in squash_names[1:]:
+        for squash_name in squash_names:
             squash_mount = ctxt.mount_squash(squash_name)
             modules_dir = squash_mount.p('usr/lib/modules')
             if os.path.exists(modules_dir):
@@ -745,8 +745,8 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
     # Fish the kernel and initrd out and put them in the right place
     # on the ISO.
     [old_kernel] = glob.glob(ctxt.p('old/iso/casper/vmlinu?'))
-    [kernel] = glob.glob(new_kernel_layer.p('boot/vmlinu?-*'))
-    [initrd] = glob.glob(new_kernel_layer.p('boot/initrd.img-*'))
+    [kernel] = glob.glob(new_kernel_layer.p(f'boot/vmlinu?-*{flavor}*'))
+    [initrd] = glob.glob(new_kernel_layer.p(f'boot/initrd.img-*{flavor}*'))
     ctxt.run([
         'mv', kernel,
         ctxt.p('new/iso/casper/' + os.path.basename(old_kernel))])
