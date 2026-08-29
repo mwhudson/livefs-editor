@@ -753,11 +753,36 @@ echo 'LazyUnmount=yes' >> /run/systemd/system/usr-lib-modules.mount.d/lazy.conf
     ctxt.run(['mv', initrd, ctxt.p('new/iso/casper/initrd')])
 
     # Copy the uuid out of the new initrd.
+    #
+    # Deliberately not using get_uuid_conf_path()/unpack_initrd() here.
+    # unpack_initrd() is @cached and, for layered ISOs, is normally called
+    # earlier in this function (via get_layerfs_path ->
+    # get_layer_conf_path) against the *original*, not-yet-replaced
+    # casper/initrd. That call also registers a pre-repack hook which
+    # repacks its (now stale) unpacked copy back over casper/initrd,
+    # unless its overlay is unchanged. Fetching the uuid via
+    # get_uuid_conf_path() and moving it out of that overlay marks it as
+    # changed, causing the stale hook to overwrite the correctly-replaced
+    # initrd we just wrote above with a rebuild of the *original* kernel's
+    # initrd when the ISO is repacked. To avoid this, look up uuid.conf
+    # directly in the initrd we just unpacked above instead.
     initrd_dir = ctxt.tmpdir()
     ctxt.run(['unmkinitramfs', ctxt.p('new/iso/casper/initrd'), initrd_dir])
-    uuid_conf = get_uuid_conf_path(ctxt)
-    assert uuid_conf is not None
-    ctxt.run(['mv', uuid_conf, ctxt.p('new/iso/.disk/casper-uuid-custom')])
+    initrd_dir_path = pathlib.Path(initrd_dir)
+    uuid_conf_path = initrd_dir_path / 'conf/uuid.conf'
+    if not uuid_conf_path.exists():
+        uuid_conf_path = None
+        for subdir in sorted(initrd_dir_path.iterdir(), reverse=True):
+            if not subdir.is_dir():
+                continue
+            candidate = subdir / 'conf/uuid.conf'
+            if candidate.exists():
+                uuid_conf_path = candidate
+                break
+    assert uuid_conf_path is not None
+    ctxt.run(
+        ['mv', str(uuid_conf_path),
+         ctxt.p('new/iso/.disk/casper-uuid-custom')])
 
     if layerfs_path is not None:
         new_squash_name = ctxt.p(f'new/iso/casper/{squash_name}.squashfs')
