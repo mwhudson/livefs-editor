@@ -130,7 +130,8 @@ code, that aborts the run.
 
 **argument**: `dest`
 
-Copy a file. The paths `source` and `dest` are interpreted in a special way:
+Copy a file or a directory tree. The paths `source` and `dest` are
+interpreted in a special way:
 
  * Absolute paths (i.e. paths starting with '/') are handled as is.
  * A magic prefix of '$LAYERS[n]' is handled by mounting the n'th layer
@@ -152,6 +153,16 @@ to replace the initrd.  And something like this:
 ```
 
 to overwrite sources.list in the base layer.
+
+If source is a directory, there are two points worth to be aware of:
+* if dest exists, source will NOT be cpied beneath dest as you would
+  expect from the cp(1) unix utility. Instead, content from source
+  will be merged into dest. That is: source/foo will become dest/foo
+  and not dest/source/foo.
+* permissions for intermediate directories are copied from the source
+  tree. In contrast, if source is NOT a directory, intermediate
+  directories are created on the fly and get their permissions from
+  the umask setting at the time livefs-editor was running.
 
 ### rm
 

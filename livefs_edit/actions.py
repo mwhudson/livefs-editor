@@ -204,7 +204,12 @@ def interpret_path(ctxt, path):
 @register_action()
 def cp(ctxt, source, dest):
     os.makedirs(interpret_path(ctxt, os.path.dirname(dest)), exist_ok=True)
-    shutil.copy(interpret_path(ctxt, source), interpret_path(ctxt, dest))
+    src = interpret_path(ctxt, source)
+    dst = interpret_path(ctxt, dest)
+    if os.path.isdir(src):
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+    else:
+        shutil.copy(src, dst)
 
 
 @register_action()
